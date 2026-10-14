@@ -532,6 +532,46 @@ label.btn svg.i{width:16px;height:16px}
   .srcchip{flex:none}
   .restpill{bottom:calc(96px + env(safe-area-inset-bottom,0px))}
 }
+
+/* ===== Einstellungen, Plan-Editor, Steuerpaket ===== */
+.lchips{display:flex;flex-wrap:wrap;gap:8px}
+.lchip{display:inline-flex;align-items:center;gap:8px;border:.5px solid var(--glass-edge);background:var(--glass-card);border-radius:999px;padding:8px 14px;font:inherit;font-size:13.5px;color:var(--fg);cursor:pointer}
+.lchip:hover{background:rgba(118,118,128,.10)}
+.lchip .num{font-size:11px;color:var(--muted);background:rgba(118,118,128,.12);border-radius:999px;padding:1px 7px}
+.tagchips{margin-top:4px}
+.tagwrap{display:flex;flex-wrap:wrap;gap:6px}
+.tagtoggle{border:0;background:rgba(118,118,128,.10);color:var(--fg);font:inherit;font-size:12.5px;padding:6px 12px;border-radius:999px;cursor:pointer}
+.tagtoggle[aria-pressed="true"]{background:var(--sel-bg);color:var(--sel-fg);font-weight:600}
+.tagline .pill{font-size:11px}
+.ltools .search{min-width:200px}
+.pedit{display:grid;grid-template-columns:280px minmax(0,1fr);gap:24px;align-items:start}
+.plib{position:sticky;top:24px;display:flex;flex-direction:column;gap:10px;max-height:calc(100vh - 48px);overflow:auto;background:var(--glass-card);-webkit-backdrop-filter:blur(30px) saturate(180%);backdrop-filter:blur(30px) saturate(180%);border:.5px solid var(--glass-edge);border-radius:22px;padding:18px;box-shadow:var(--glass-shadow)}
+.plib .search{width:100%;min-width:0}
+.plibl{display:flex;flex-direction:column;gap:4px}
+.plibi,.pitem{display:flex;align-items:center;gap:10px;border-radius:12px;padding:8px 10px;background:rgba(118,118,128,.06);cursor:grab;font-size:13px}
+.plibi .t{font-weight:500}.plibi .s{font-size:11px;color:var(--muted)}
+.plibi:hover,.pitem:hover{background:rgba(118,118,128,.12)}
+.grip{color:var(--faint);font-size:14px;line-height:1;cursor:grab}
+.dragging{opacity:.4}
+.pdays{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}
+.pday{display:flex;flex-direction:column;gap:10px;background:var(--glass-card);-webkit-backdrop-filter:blur(30px) saturate(180%);backdrop-filter:blur(30px) saturate(180%);border:.5px solid var(--glass-edge);border-radius:22px;padding:16px;box-shadow:var(--glass-shadow)}
+.pday-h{display:flex;align-items:center;gap:10px}.pday-h h3{flex:none;margin:0}
+.pfocus{flex:1;min-width:0;font-size:12.5px;padding:6px 12px}
+.plist{display:flex;flex-direction:column;gap:6px;min-height:44px;border-radius:14px;transition:background .15s}
+.plist.dropover{background:color-mix(in srgb,var(--accent,#007AFF) 10%,transparent);outline:1.5px dashed color-mix(in srgb,var(--accent,#007AFF) 50%,transparent)}
+.pempty{margin:0;padding:12px;text-align:center}
+.pitem{flex-wrap:wrap;row-gap:6px}.pitem .pn{flex:1 1 calc(100% - 30px);min-width:0;font-weight:500}.pitem .psr{margin-left:24px}.pitem .pbtns{margin-left:auto}
+.psr{display:flex;align-items:center;gap:4px;flex:none}
+.psr .inp{flex:none;width:58px;min-height:0;height:30px;padding:4px 6px;text-align:center;font-size:12.5px;border-radius:8px}
+.psr .pr{width:84px}
+.pfocus{min-height:0;height:32px;flex:1 1 auto!important}
+@media (max-width:767px){.panel .kpis.pkgk{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.pbtns{display:flex;gap:2px;flex:none}
+.pbtns button{border:0;background:none;color:var(--muted);font:inherit;font-size:13px;width:26px;height:26px;border-radius:8px;cursor:pointer}
+.pbtns button:hover:not(:disabled){background:rgba(118,118,128,.14);color:var(--fg)}
+.pbtns button:disabled{opacity:.3;cursor:default}
+@media (max-width:1023px){.pedit{grid-template-columns:1fr}.plib{display:none}}
+@media (max-width:767px){.pdays{grid-template-columns:1fr}.pitem .grip{display:none}.pitem .psr{margin-left:0}}
 </style>
 
 <div class="shell">
@@ -557,6 +597,7 @@ const COMPANIES=['JPL Capital UG','Lestate Real'];
 const AREAS=[...ENT,'Silverton','WHU','Haushalt','Persönlich','Verwaltung'];
 const CATS=['Wohnen','Lebensmittel','Restaurant & Café','Mobilität','Reisen','Versicherungen','Abos & Software','Sport & Gesundheit','Shopping','Bildung','Steuern & Gebühren','Immobilien','Finanzierung','Einkommen','Umbuchung','Sonstiges'];
 const TAX=['Anlage V Stockkampstraße','Werbungskosten (Anlage N)','Sonderausgaben','Haushaltsnahe Dienstleistungen','Betriebsausgabe JPL Capital UG','Betriebsausgabe Lestate','Betriebseinnahme','Kapitalerträge'];
+const DEF_LISTS={ent:[...ENT],areas:AREAS.slice(ENT.length),cats:[...CATS],tax:[...TAX]};
 const CAT_RULES=[
  [/miete|hausgeld|nebenkosten|stadtwerke|strom|gas |vodafone|telekom|o2 |1&1/i,'Wohnen'],
  [/rewe|edeka|aldi|lidl|netto|kaufland|penny|dm |rossmann|alnatura/i,'Lebensmittel'],
@@ -639,14 +680,14 @@ const GROUPS=[
  ['g-planer','Planer',ICON.check,[['todo','To-Dos'],['kalender','Kalender'],['post','Postfach'],['projekte','Projekte & Ziele']]],
  ['g-geld','Geld',ICON.euro,[['finanzen','Finanzen'],['planung','Planung'],['immo','Immobilien & Firmen'],['verwaltung','Verwaltung']]],
  ['g-zuhause','Zuhause',ICON.home,[['haushalt','Haushalt'],['reisen','Reisen']]],
- ['g-ich','Ich',ICON.me,[['journal','Journal'],['training','Training'],['persoenlich','Gewohnheiten & Menschen'],['rueckblick','Rückblick']]]
+ ['g-ich','Ich',ICON.me,[['journal','Journal'],['training','Training'],['persoenlich','Gewohnheiten & Menschen'],['rueckblick','Rückblick'],['einstellungen','Einstellungen']]]
 ];
 const SECS=GROUPS.flatMap(g=>g[3].map(x=>x[0]));
 const groupOf=sec=>GROUPS.find(g=>g[3].some(x=>x[0]===sec))||GROUPS[0];
 
 // ---------- Zustand ----------
 const S={}; Object.keys(SCHEMA).forEach(k=>S[k]=[]); Object.assign(S,{habitlog:[],workouts:[],snapshots:[],journal:[],meta:{},settings:{},hh:{}});
-let assetsApi=null,sampleApi=null;
+let assetsApi=null,sampleApi=null,downloadsApi=null;S.tplan=null;
 let db=null, loaded=false, owner=true;
 const ui={sec:'heute',tab:{},q:{},showMoney:false,wdate:null,draft:null,scen:null,jdate:null,jdraft:null,last:{}};
 try{const v=localStorage.getItem('lifeos.ui');if(v){const o=JSON.parse(v);ui.sec=o.sec||'heute';ui.tab=o.tab||{};ui.last=o.last||{};}}catch(e){}
@@ -697,7 +738,7 @@ async function boot(){
   const subs=[];
   const sub=(q,fn)=>subs.push([q,fn]);
   const keys=Object.keys(SCHEMA).filter(k=>owner||k.startsWith('hh'));
-  if(owner){claude.use('assets').then(a=>{assetsApi=a;render()}).catch(()=>{});claude.use('sample').then(a=>{sampleApi=a;render()}).catch(()=>{})}
+  if(owner){claude.use('assets').then(a=>{assetsApi=a;render()}).catch(()=>{});claude.use('sample').then(a=>{sampleApi=a;render()}).catch(()=>{});claude.use('downloads').then(a=>{downloadsApi=a}).catch(()=>{})}
   keys.forEach(k=>{
     let q=db.collection(path(k));
     if(k==='transactions') q=q.orderBy('date','desc').limit(1000);
@@ -712,6 +753,7 @@ async function boot(){
     sub(db.collection('snapshots').orderBy('month','asc').limit(240),s=>{S.snapshots=s.docs.map(d=>({id:d.id,...d.data()}))});
     sub(db.doc('meta/sync'),s=>{S.meta=s.exists?s.data():{}});
     sub(db.doc('settings/main'),s=>{S.settings=s.exists?s.data():{}});
+    sub(db.doc('settings/training'),s=>{S.tplan=s.exists?s.data():null});
   }
   sub(db.doc('hh/main'),s=>{S.hh=s.exists?s.data():{}});
   let pending=subs.length;
@@ -822,7 +864,56 @@ function hhBalance(){let netA=0;S.hhExp.forEach(e=>{const amt=+e.amount||0;const
 function hhTaskDue(t){if(t.repeat==='einmalig')return t.due||TODAY();const c=+t.cadence||7;return t.lastDone?addDays(t.lastDone,c):TODAY()}
 function hhAssignee(t){if(t.who==='abwechselnd')return t.lastBy==='a'?'b':'a';return t.who}
 // Training
-function woFor(dateStr){const d=parseD(dateStr);const {w}=isoWeek(d);const wo=w%2===0?'1':'2';const dk=WD[d.getDay()];return {wo,dk,focus:TP.focus[dk],items:(TP.plan[wo]&&TP.plan[wo][dk])||[],week:w}}
+// Trainingsplan: Versionen ab Kalenderwoche, Bibliothek mit Tags
+const TAG_SUGG=['Brust','Rücken','Schultern','Bizeps','Trizeps','Beine','Gesäß','Core','Mobility','Plyo','Sprint','Conditioning','Wurf','Kraft','Explosiv','Langhantel','Kurzhantel','Kabel','Maschine','Körpergewicht','Band','Medizinball'];
+const DAYS7=['Mo','Di','Mi','Do','Fr','Sa','So'];
+const clone=x=>JSON.parse(JSON.stringify(x));
+function tpVersions(){return (S.tplan&&Array.isArray(S.tplan.versions))?S.tplan.versions:[]}
+function planAt(dateStr){const wk=weekId(parseD(dateStr));const vs=tpVersions().filter(v=>v.from<=wk).sort((a,b)=>a.from<b.from?1:-1);return vs[0]||{focus:TP.focus,plan:TP.plan}}
+function libList(){if(S.tplan&&Array.isArray(S.tplan.lib))return S.tplan.lib;const names=new Set(TP.lib);Object.values(TP.plan).forEach(w=>Object.values(w).forEach(d=>(d||[]).forEach(it=>names.add(it.n))));return [...names].map(n=>({n,tags:[]}))}
+const libNames=()=>libList().map(x=>x.n).sort((a,b)=>a.localeCompare(b,'de'));
+const libTags=()=>[...new Set([...libList().flatMap(x=>x.tags||[])])].sort((a,b)=>a.localeCompare(b,'de'));
+function tpEditable(){const wk=weekId(new Date());const v=tpVersions().find(x=>x.from===wk);if(v)return clone(v);const base=planAt(TODAY());const out={from:wk,focus:clone(base.focus||{}),plan:clone(base.plan||{})};['1','2'].forEach(w=>{out.plan[w]=out.plan[w]||{};DAYS7.forEach(d=>{out.plan[w][d]=out.plan[w][d]||[]})});return out}
+async function tpStore(versions,lib){const doc={versions,lib:lib===undefined?((S.tplan&&S.tplan.lib)||null):lib,updatedAt:new Date().toISOString()};S.tplan=doc;render();if(!db)return;try{await db.doc('settings/training').set(doc)}catch(e){toast('Speichern fehlgeschlagen')}}
+async function tpSaveVersion(v){await tpStore([...tpVersions().filter(x=>x.from!==v.from),v])}
+async function tpEdit(fn){const v=tpEditable();fn(v);await tpSaveVersion(v)}
+const tpNum=x=>{const t=String(x??'').trim();return /^\d+$/.test(t)?+t:t};
+function libFilterHTML(qkey,tkey){const tags=libTags();const cur=ui.tab[tkey]||'';return `<div class="tools ltools">${searchBox(qkey,'Übung suchen')}</div>${tags.length?`<div class="srcchips tagchips">${['',...tags].map(t=>`<button class="srcchip" data-ltag="${tkey}" data-v="${esc(t)}" aria-pressed="${cur===t}">${t?esc(t):'Alle'}</button>`).join('')}</div>`:''}`}
+function libFiltered(qkey,tkey){const q=(ui.q[qkey]||'').toLowerCase().trim();const t=ui.tab[tkey]||'';return libList().filter(x=>(!t||(x.tags||[]).includes(t))&&(!q||x.n.toLowerCase().includes(q)||(x.tags||[]).some(g=>g.toLowerCase().includes(q)))).sort((a,b)=>a.n.localeCompare(b.n,'de'))}
+const tagPills=x=>(x.tags||[]).map(t=>`<span class="pill">${esc(t)}</span>`).join(' ');
+function openLibEdit(name){
+  const lib=clone(libList());const ex=name?lib.find(x=>x.n===name):{n:'',tags:[]};if(!ex)return;let tags=[...(ex.tags||[])];
+  const all=()=>[...new Set([...TAG_SUGG,...libTags(),...tags])];
+  const usedIn=name?tpVersions().concat([{plan:TP.plan}]).some(v=>Object.values(v.plan||{}).some(w=>Object.values(w||{}).some(d=>(d||[]).some(it=>it.n===name)))):false;
+  const draw=()=>{document.getElementById('lbTags').innerHTML=all().map(t=>`<button type="button" class="tagtoggle" data-tg="${esc(t)}" aria-pressed="${tags.includes(t)}">${esc(t)}</button>`).join('')};
+  document.getElementById('overlay').innerHTML=`<div class="scrim" data-scrim><div class="sheet" role="dialog" aria-modal="true" aria-label="Übung"><div class="panel-h"><h2>${name?'Übung bearbeiten':'Neue Übung'}</h2><button class="btn ghost" data-closesheet aria-label="Schließen">✕</button></div>
+  <form id="lbForm"><div class="field"><label for="lbName">Name</label><input id="lbName" value="${esc(ex.n)}" autocomplete="off" required></div>
+  <div class="field"><label>Tags</label><div class="tagwrap" id="lbTags"></div><div class="subadd"><input class="inp" id="lbNew" placeholder="Eigenen Tag hinzufügen" aria-label="Eigener Tag"><button type="button" class="btn sm" id="lbAdd">Hinzufügen</button></div></div>
+  ${name&&usedIn?'<p class="sync">Beim Umbenennen wird die Übung auch im Wochenplan umbenannt. Bereits geloggte Einheiten behalten den alten Namen.</p>':''}
+  <div class="sheet-actions"><div class="tools">${name?`<span id="lbDel"><button type="button" class="btn danger" id="lbDelAsk">Entfernen</button></span>`:''}</div><div class="tools"><button type="button" class="btn" data-closesheet>Abbrechen</button><button class="btn pri" type="submit">Speichern</button></div></div></form></div></div>`;
+  draw();const sh=document.querySelector('#overlay .sheet');
+  sh.addEventListener('click',e=>{const tg=e.target.closest('[data-tg]');if(tg){const t=tg.dataset.tg;tags=tags.includes(t)?tags.filter(x=>x!==t):[...tags,t];draw();return}
+    if(e.target.closest('#lbAdd')){const inp=document.getElementById('lbNew');const t=inp.value.trim();if(t&&!tags.includes(t))tags.push(t);inp.value='';draw();return}
+    if(e.target.closest('#lbDelAsk')){document.getElementById('lbDel').innerHTML=`<span class="confirm">${usedIn?'Bleibt im Wochenplan, bis du sie dort entfernst. ':''}Entfernen? <button type="button" class="btn sm danger" id="lbYes">Ja</button></span>`;document.getElementById('lbYes').onclick=async()=>{closeSheet();await tpStore(tpVersions(),lib.filter(x=>x.n!==name));toast('Übung entfernt')}}});
+  document.getElementById('lbNew').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();document.getElementById('lbAdd').click()}});
+  document.getElementById('lbForm').addEventListener('submit',async e=>{e.preventDefault();const nn=document.getElementById('lbName').value.trim();if(!nn)return;
+    if(nn!==name&&lib.some(x=>x.n===nn)){toast('Diese Übung gibt es schon');return}
+    let out;if(name){out=lib.map(x=>x.n===name?{n:nn,tags}:x)}else out=[...lib,{n:nn,tags,custom:true}];
+    let vs=tpVersions();if(name&&nn!==name){vs=vs.map(v=>{const c=clone(v);Object.values(c.plan||{}).forEach(w=>Object.values(w||{}).forEach(d=>(d||[]).forEach(it=>{if(it.n===name)it.n=nn})));return c});if(usedIn&&!vs.length){const v=tpEditable();Object.values(v.plan).forEach(w=>Object.values(w).forEach(d=>d.forEach(it=>{if(it.n===name)it.n=nn})));vs=[v]}}
+    closeSheet();await tpStore(vs,out);toast('Gespeichert')});
+}
+function openPicker(wo,dk){
+  const key='pick';ui.q[key]=ui.q[key]||'';
+  const html=()=>libFiltered(key,'pickTag').map(x=>`<div class="row" tabindex="0" data-pickn="${esc(x.n)}"><span class="dot acc"></span><div style="min-width:0"><div class="t">${esc(x.n)}</div>${(x.tags||[]).length?`<div class="s">${esc(x.tags.join(' · '))}</div>`:''}</div><div class="r">+</div></div>`).join('')||'<div class="empty">Keine Übung gefunden.</div>';
+  document.getElementById('overlay').innerHTML=`<div class="scrim" data-scrim><div class="sheet" role="dialog" aria-modal="true" aria-label="Übung hinzufügen"><div class="panel-h"><h2>${WDL[WD.indexOf(dk)]} · Übung hinzufügen</h2><button class="btn ghost" data-closesheet aria-label="Schließen">✕</button></div><div id="pkF">${libFilterHTML(key,'pickTag')}</div><div class="list" id="pkL">${html()}</div><button class="btn sm" id="pkNew" type="button">+ Neue Übung anlegen</button></div></div>`;
+  const sh=document.querySelector('#overlay .sheet');
+  sh.addEventListener('input',e=>{if(e.target.dataset.q){ui.q[key]=e.target.value;document.getElementById('pkL').innerHTML=html()}});
+  sh.addEventListener('click',async e=>{const tg=e.target.closest('[data-ltag]');if(tg){ui.tab.pickTag=tg.dataset.v;sh.querySelectorAll('[data-ltag]').forEach(b=>b.setAttribute('aria-pressed',String(b===tg)));document.getElementById('pkL').innerHTML=html();return}
+    const p=e.target.closest('[data-pickn]');if(p){const n=p.dataset.pickn;closeSheet();await tpEdit(v=>{v.plan[wo][dk].push({n,s:3,r:'8'})});toast(n+' hinzugefügt');return}
+    if(e.target.closest('#pkNew')){openLibEdit(null)}});
+  const si=sh.querySelector('input[data-q]');if(si)si.focus();
+}
+function woFor(dateStr){const d=parseD(dateStr);const {w}=isoWeek(d);const wo=w%2===0?'1':'2';const dk=WD[d.getDay()];return {wo,dk,focus:(planAt(dateStr).focus||{})[dk],items:((planAt(dateStr).plan||{})[wo]||{})[dk]||[],week:w}}
 
 // ---------- Bausteine ----------
 function rowHTML(o){
@@ -1197,13 +1288,22 @@ V.immo=()=>{
     const y=years.includes(ui.tab.taxYear)?ui.tab.taxYear:years[0];
     const tx=S.transactions.filter(x=>(x.date||'').startsWith(y));const inv=S.invoices.filter(x=>(x.due||x.updatedAt||'').startsWith(y));const docs=S.documents.filter(x=>(x.date||'').startsWith(y));
     const tag=ui.tab.taxTag||'';
-    const rows=TAX.map(t=>{const a=tx.filter(x=>x.taxTag===t);return {t,n:a.length,sum:sum(a,x=>x.amount),miss:a.filter(x=>!x.receipt).length,inv:inv.filter(x=>x.taxTag===t).length,docs:docs.filter(x=>x.taxTag===t).length}});
-    const untagged=tx.filter(x=>!x.taxTag&&['Stockkampstraße','JPL Capital UG','Lestate Real'].includes(x.entity));
+    const rows=TAX.map(t=>{const a=tx.filter(x=>x.taxTag===t);return {t,n:a.length,sum:sum(a,x=>x.amount),miss:a.filter(x=>+x.amount<0&&!x.receipt&&!x.receiptId).length,inv:inv.filter(x=>x.taxTag===t).length,docs:docs.filter(x=>x.taxTag===t).length}});
+    const untagged=tx.filter(x=>!x.taxTag&&x.entity&&x.entity!=='Privat'&&guessTax(x.entity,+x.amount));
     const sel=tag?tx.filter(x=>x.taxTag===tag):[];
+    const pEnt=ENT.includes(ui.tab.pkgEnt)?ui.tab.pkgEnt:(ENT.find(e=>e!=='Privat')||'Privat');const pd=taxData(pEnt,y);const miss=ui.tab.taxMiss||'';
+    const pkg=panel('Paket für den Steuerberater',`<div class="panel-h" style="padding:0"><div class="tools">${selectUI('pkgEnt',ENT,pEnt,'Bereich')}<span class="sync">${y}</span></div><button class="btn sm pri" data-taxpkg data-ent="${esc(pEnt)}" data-y="${y}">ZIP erstellen</button></div>
+      <div class="kpis pkgk"><div class="kpi"><span class="lbl">Buchungen</span><span class="val num">${pd.tx.length}</span><span class="sub money">${M(pd.inc)} ein · ${M(Math.abs(pd.out))} aus</span></div>
+      <div class="kpi ${pd.noRec.length?'alert':''}" role="button" tabindex="0" data-taxmiss="rec" style="cursor:pointer"><span class="lbl">Ohne Beleg</span><span class="val num">${pd.noRec.length}</span><span class="sub">Ausgaben · antippen zum Nachtragen</span></div>
+      ${pEnt!=='Privat'?`<div class="kpi ${pd.noTag.length?'alert':''}" role="button" tabindex="0" data-taxmiss="tag" style="cursor:pointer"><span class="lbl">Ohne Zuordnung</span><span class="val num">${pd.noTag.length}</span><span class="sub">Steuer-Zuordnung fehlt</span></div>`:''}
+      <div class="kpi"><span class="lbl">Rechnungen · Dokumente</span><span class="val num">${pd.inv.length} · ${pd.docs.length}</span></div></div>
+      ${miss?listHTML((miss==='rec'?pd.noRec:pd.noTag).slice(0,80).map(x=>rowHTML({coll:'transactions',id:x.id,t:x.counterparty||x.purpose||'Buchung',s:esc([fd(x.date),x.category,x.taxTag].filter(Boolean).join(' · ')),r:M(x.amount,true),tone:'warn'})),'Nichts offen.'):''}
+      <p class="sync">Das ZIP enthält eine Excel-Datei (Übersicht, Buchungen, Kategorien, fehlende Belege, Rechnungen, Dokumente), eine PDF-Zusammenfassung und alle Belege, benannt nach Datum, Betrag und Gegenpartei.</p>`);
     body=`<div class="panel-h"><div class="tools">${selectUI('taxYear',years,y,'Jahr')}</div></div>
+    ${pkg}
     <div class="tblw money"><table class="tbl"><thead><tr><th>Zuordnung</th><th>Buchungen</th><th>Summe</th><th>ohne Beleg</th><th>Rechnungen</th><th>Dokumente</th></tr></thead><tbody>${rows.map(r=>`<tr data-taxsel="${esc(r.t)}" style="cursor:pointer"><td>${esc(r.t)}</td><td>${r.n||''}</td><td class="${r.sum<0?'neg':''}">${r.n?nf.format(Math.round(r.sum)):''}</td><td>${r.miss?`<span class="pill warn">${r.miss}</span>`:''}</td><td>${r.inv||''}</td><td>${r.docs||''}</td></tr>`).join('')}</tbody></table></div>
     ${untagged.length?`<div class="banner">${untagged.length} Buchungen ${y} auf Objekt- oder Firmenkonten haben noch keine Steuer-Zuordnung. <button class="btn sm" data-taxauto>Vorschlag übernehmen</button></div>`:''}
-    ${tag?panel(esc(tag)+' · '+y,listHTML(sel.map(x=>rowHTML({coll:'transactions',id:x.id,t:x.counterparty||x.purpose||'Buchung',s:esc([x.category,x.account].filter(Boolean).join(' · ')),r:M(x.amount,true),rs:x.receipt?'<span class="pill good">Beleg</span>':'<span class="pill warn">Beleg fehlt</span>'})),'Keine Buchungen.')):'<p class="sync">Tippe auf eine Zeile für die Einzelbuchungen. Zuordnungen setzt du in jeder Buchung, Rechnung und jedem Dokument.</p>'}`;
+    ${tag?panel(esc(tag)+' · '+y,listHTML(sel.map(x=>rowHTML({coll:'transactions',id:x.id,t:x.counterparty||x.purpose||'Buchung',s:esc([x.category,x.account].filter(Boolean).join(' · ')),r:M(x.amount,true),rs:(x.receipt||x.receiptId)?'<span class="pill good">Beleg</span>':'<span class="pill warn">Beleg fehlt</span>'})),'Keine Buchungen.')):'<p class="sync">Tippe auf eine Zeile für die Einzelbuchungen. Zuordnungen setzt du in jeder Buchung, Rechnung und jedem Dokument.</p>'}`;
   } else {
     const cols=STAGES;
     body=`<div class="panel-h"><span class="sync">Kennzahlen aus Kaufpreis, Nebenkosten, Sanierung, Fremdkapital und Exit-Wert. Deals ab Phase „Angebot“ mit Beurkundungsdatum fließen in den Liquiditätsplan.</span><button class="btn sm" data-new="deals">+ Deal</button></div>
@@ -1310,7 +1410,7 @@ V.training=()=>{
     const exHTML=(it,i)=>{const e=dr.ex[it.n]||{};const name=e.swap||it.n;const h=exHist(name,date);const curKg=Math.max(0,...(e.sets||[]).map(x=>+(x&&x.kg)||0));const pr=curKg>0&&h.best>0&&curKg>h.best;const ph=(j,f,d)=>{const x=h.last&&h.last.sets[j];return x&&x[f]!=null?esc(x[f]):d};const nSets=Math.max((e.sets||[]).length,typeof it.s==='number'?it.s:(isThrow?1:(it.s?+it.s||3:3)));const sets=[];for(let j=0;j<nSets;j++)sets.push((e.sets||[])[j]||{});
       return `<div class="ex"><div class="ex-h"><div class="nm"><button class="chk ${e.done?'on':''}" data-exdone="${i}" aria-label="${esc(name)} erledigt">${e.done?'✓':''}</button><span>${esc(name)}${e.swap?` <span class="pill acc">statt ${esc(it.n)}</span>`:''}${pr?' <span class="pill good">Neuer Bestwert</span>':''}</span></div><span class="sync">${it.s?esc(it.s)+' × ':''}${esc(it.r||'')}</span></div>
       ${h.last?`<div class="exlast"><span class="sync">Zuletzt ${fds(h.last.date)}: ${h.last.sets.map(x=>(x.r??'–')+(x.kg?' × '+nf1.format(x.kg)+' kg':'')).join(' · ')}${h.best?` · Bestwert ${nf1.format(h.best)} kg`:''}</span>${isThrow?'':`<button class="btn sm ghost" data-exlast="${i}">Wie letztes Mal</button>`}</div>`:''}<div class="sets">${sets.map((s,j)=>`<span class="set">${isThrow?'Würfe':'S'+(j+1)}<input type="number" inputmode="numeric" placeholder="${ph(j,'r','Wdh.')}" value="${esc(s.r??'')}" data-set="${i}:${j}:r" aria-label="${esc(name)} Satz ${j+1} Wiederholungen">${isThrow?'':`<input type="number" inputmode="decimal" step="0.5" placeholder="${ph(j,'kg','kg')}" value="${esc(s.kg??'')}" data-set="${i}:${j}:kg" aria-label="${esc(name)} Satz ${j+1} Gewicht">`}</span>`).join('')}
-      ${isThrow?'':`<button class="btn sm ghost" data-addset="${i}">+ Satz</button>`}<select class="search" style="width:auto;font-size:12px;padding:4px 6px" data-swap="${i}" aria-label="Übung tauschen"><option value="">Tauschen …</option>${TP.lib.map(l=>`<option ${l===e.swap?'selected':''}>${esc(l)}</option>`).join('')}</select></div></div>`};
+      ${isThrow?'':`<button class="btn sm ghost" data-addset="${i}">+ Satz</button>`}<select class="search" style="width:auto;font-size:12px;padding:4px 6px" data-swap="${i}" aria-label="Übung tauschen"><option value="">Tauschen …</option>${libNames().map(l=>`<option ${l===e.swap?'selected':''}>${esc(l)}</option>`).join('')}</select></div></div>`};
     const nDone=w.items.filter(it=>(dr.ex[it.n]||{}).done).length;
     body=`<div class="panel-h"><div class="tools"><button class="btn sm" data-wday="-1" aria-label="Vorheriger Tag">←</button><strong>${WDL[parseD(date).getDay()]}, ${fd(date)}</strong><button class="btn sm" data-wday="1" aria-label="Nächster Tag">→</button>${date!==TODAY()?'<button class="btn sm ghost" data-wday="0">Heute</button>':''}</div><div class="tools"><span class="pill acc">KW ${w.week} · WO ${w.wo} (${w.wo==='1'?'gerade':'ungerade'} KW)</span>${log?'<span class="pill good">gespeichert</span>':''}</div></div>
     <div class="kpis"><div class="kpi"><span class="lbl">Fokus</span><span class="val" style="font-size:18px">${esc(w.focus||'–')}</span></div><div class="kpi"><span class="lbl">Erledigt</span><span class="val num">${nDone} / ${w.items.length}</span><div class="prog"><i style="width:${w.items.length?nDone/w.items.length*100:0}%"></i></div></div><div class="kpi"><span class="lbl">Einheiten diese Woche</span><span class="val num">${S.workouts.filter(x=>weekId(parseD(x.date))===weekId(parseD(date))).length}</span></div></div>
@@ -1319,10 +1419,20 @@ V.training=()=>{
     <div class="ex"><div class="field"><label for="wNote">Notiz / Gefühl</label><textarea id="wNote" data-wnote>${esc(dr.note)}</textarea></div><div class="tools"><label class="sync" for="wRpe">Anstrengung (1–10)</label><input class="inp" id="wRpe" type="number" min="1" max="10" style="width:80px" value="${esc(dr.rpe)}" data-wrpe></div></div>
     <div class="tools"><button class="btn pri" data-wsave>Einheit speichern</button>${log?'<button class="btn danger sm" data-wdel>Log löschen</button>':''}</div>`;
   } else if(tb.cur==='plan'){
-    const wo=ui.tab.trWo||(isoWeek(new Date()).w%2===0?'1':'2');
-    body=`<div class="panel-h"><div class="tools">${selectUI('trWo',[['1','WO 1 · gerade KW'],['2','WO 2 · ungerade KW']],wo,'Woche')}</div></div>
-    <div class="cards">${['Mo','Di','Mi','Do','Fr','Sa','So'].map(dk=>`<div class="card" style="cursor:default"><div class="panel-h" style="min-height:0"><h3>${WDL[WD.indexOf(dk)]}</h3><span class="pill acc">${esc(TP.focus[dk]||'')}</span></div><ol style="margin:0;padding-left:18px;font-size:13px;display:flex;flex-direction:column;gap:3px">${(TP.plan[wo][dk]||[]).map(it=>`<li>${esc(it.n)}${it.s||it.r?` <span class="sync">${it.s?esc(it.s)+'×':''}${esc(it.r||'')}</span>`:''}</li>`).join('')}</ol></div>`).join('')}</div>
-    <p class="sync">Grundlage: dein QB-Preseason-Plan. Donnerstag WO 2 enthält den unteren Zusatzblock aus der Tabelle.</p>`;
+    const wo=ui.tab.trWo||(isoWeek(new Date()).w%2===0?'1':'2');const edit=!!ui.planEdit;
+    const p=edit?tpEditable():planAt(TODAY());const vs=tpVersions();
+    const head=`<div class="panel-h"><div class="tools">${selectUI('trWo',[['1','WO 1 · gerade KW'],['2','WO 2 · ungerade KW']],wo,'Woche')}</div><div class="tools">${edit?`<button class="btn sm ghost" data-planreset>${vs.length?'Original wiederherstellen':''}</button>`:''}<button class="btn sm ${edit?'pri':''}" data-planedit>${edit?'Fertig':'Bearbeiten'}</button></div></div>`;
+    if(!edit){
+      body=head+`<div class="cards">${DAYS7.map(dk=>`<div class="card" style="cursor:default"><div class="panel-h" style="min-height:0"><h3>${WDL[WD.indexOf(dk)]}</h3><span class="pill acc">${esc((p.focus||{})[dk]||'')}</span></div><ol style="margin:0;padding-left:18px;font-size:13px;display:flex;flex-direction:column;gap:3px">${(((p.plan||{})[wo]||{})[dk]||[]).map(it=>`<li>${esc(it.n)}${it.s||it.r?` <span class="sync">${it.s?esc(it.s)+'×':''}${esc(it.r||'')}</span>`:''}</li>`).join('')}</ol></div>`).join('')}</div>
+      <p class="sync">${vs.length?`Angepasster Plan, gültig ab ${esc(vs.map(v=>v.from).sort().pop().replace('-W',' · KW '))}. Frühere Wochen zeigen den Plan, der damals galt.`:'Grundlage: dein QB-Preseason-Plan. Donnerstag WO 2 enthält den unteren Zusatzblock aus der Tabelle.'}</p>`;
+    } else {
+      const libItems=libFiltered('plib','plibTag');
+      body=head+`<div class="pedit"><aside class="plib"><h3>Bibliothek</h3>${libFilterHTML('plib','plibTag')}<div class="plibl">${libItems.map(x=>`<div class="plibi" draggable="true" data-libn="${esc(x.n)}" title="In einen Tag ziehen"><span class="grip" aria-hidden="true">⠿</span><div style="min-width:0"><div class="t">${esc(x.n)}</div>${(x.tags||[]).length?`<div class="s">${esc(x.tags.join(' · '))}</div>`:''}</div></div>`).join('')||'<p class="sync">Keine Übung gefunden.</p>'}</div><button class="btn sm ghost" data-libnew>+ Neue Übung</button></aside>
+      <div class="pdays">${DAYS7.map(dk=>{const its=p.plan[wo][dk]||[];return `<section class="pday" data-pdk="${dk}"><div class="pday-h"><h3>${WDL[WD.indexOf(dk)]}</h3><input class="inp pfocus" data-pfocus="${dk}" value="${esc(p.focus[dk]||'')}" placeholder="Fokus" aria-label="Fokus ${WDL[WD.indexOf(dk)]}"></div>
+        <div class="plist" data-pdrop="${dk}">${its.map((it,i)=>`<div class="pitem" draggable="true" data-pdrag="${dk}:${i}"><span class="grip" aria-hidden="true">⠿</span><span class="pn">${esc(it.n)}</span><span class="psr"><input class="inp ps" data-pset="${dk}:${i}:s" value="${esc(it.s??'')}" inputmode="numeric" placeholder="Sätze" aria-label="${esc(it.n)} Sätze"><span class="sync">×</span><input class="inp pr" data-pset="${dk}:${i}:r" value="${esc(it.r??'')}" placeholder="Wdh." aria-label="${esc(it.n)} Wiederholungen"></span><span class="pbtns"><button data-pmove="${dk}:${i}:-1" aria-label="Nach oben" ${i?'':'disabled'}>↑</button><button data-pmove="${dk}:${i}:1" aria-label="Nach unten" ${i<its.length-1?'':'disabled'}>↓</button><button data-prm="${dk}:${i}" aria-label="${esc(it.n)} entfernen">✕</button></span></div>`).join('')||'<p class="sync pempty">Ruhetag – Übung hierher ziehen</p>'}</div>
+        <button class="btn sm ghost" data-ppick="${dk}">+ Übung</button></section>`}).join('')}</div></div>
+      <p class="sync">Änderungen gelten ab dieser Woche (${esc(weekId(new Date()).replace('-W',' · KW '))}); bereits geloggte Einheiten bleiben unverändert. Sätze × Wiederholungen frei eintragbar, z. B. „3 × 8“ oder „4 × 30 s“.</p>`;
+    }
   } else if(tb.cur==='verlauf'){
     const names=[...new Set(S.workouts.flatMap(w=>Object.entries(w.ex||{}).filter(([k,v])=>(v.sets||[]).some(s=>s.kg)).map(([k,v])=>v.swap||k)))].sort();
     const ex=names.includes(ui.tab.trEx)?ui.tab.trEx:names[0];
@@ -1332,9 +1442,12 @@ V.training=()=>{
     ${panel('Fortschritt je Übung',names.length?`<div class="tools">${selectUI('trEx',names,ex,'Übung')}</div>${lineChart(pts.map(p=>fds(p[0])),[{n:'Höchstes Gewicht (kg)',c:'var(--accent)',v:pts.map(p=>p[1]),area:true}],{unit:'kg',label:'Gewichtsverlauf'})}`:'<div class="empty">Sobald du Sätze mit Gewicht loggst, erscheint hier der Verlauf je Übung.</div>')}
     ${panel('Letzte Einheiten',listHTML(S.workouts.slice(0,30).map(w=>`<div class="row" tabindex="0" data-wopen="${esc(w.date)}"><span class="dot acc"></span><div style="min-width:0"><div class="t">${esc(w.focus||'Einheit')}</div><div class="s">WO ${esc(w.wo||'')} · ${Object.values(w.ex||{}).filter(e=>e.done).length} Übungen erledigt${w.rpe?' · RPE '+esc(w.rpe):''}</div></div><div class="r">${fds(w.date)}</div></div>`),'Noch keine Einheiten geloggt.'))}`;
   } else {
-    body=`<div class="list">${TP.lib.map(l=>`<div class="row" style="cursor:default"><span class="dot"></span><div class="t">${esc(l)}</div><div class="r"></div></div>`).join('')}</div><p class="sync">Diese Übungen stehen beim Loggen unter „Tauschen“ zur Auswahl.</p>`;
+    const items=libFiltered('lib','libTag');
+    body=`<div class="panel-h">${libFilterHTML('lib','libTag')}<div class="tools"><button class="btn sm" data-libnew>+ Übung</button></div></div>
+    ${listHTML(items.map(x=>`<div class="row" tabindex="0" data-libedit="${esc(x.n)}"><span class="dot ${(x.tags||[]).length?'acc':''}"></span><div style="min-width:0"><div class="t">${esc(x.n)}</div>${(x.tags||[]).length?`<div class="s tagline">${tagPills(x)}</div>`:'<div class="s">ohne Tags</div>'}</div><div class="r"></div></div>`),'Keine Übung gefunden.')}
+    <p class="sync">Tippe auf eine Übung, um Tags zu vergeben oder sie umzubenennen. Alle Übungen stehen im Wochenplan und beim Loggen unter „Tauschen“ zur Auswahl.</p>`;
   }
-  return `<div class="topbar"><div><h1>Training</h1><p>QB-Preseason-Plan: WO 1 in geraden, WO 2 in ungeraden Kalenderwochen. Die App zeigt automatisch die richtige Einheit.</p></div></div>${tb.html}${body}`;
+  return `<div class="topbar"><div><h1>Training</h1><p>WO 1 in geraden, WO 2 in ungeraden Kalenderwochen. Die App zeigt automatisch die richtige Einheit; den Plan passt du unter „Wochenplan“ an.</p></div></div>${tb.html}${body}`;
 };
 
 V.projekte=()=>{
@@ -1388,10 +1501,51 @@ function weekNumbers(){
   return [`Ausgaben privat: ${eur.format(Math.abs(sum(tx.filter(x=>+x.amount<0),x=>x.amount)))}`,`Trainingseinheiten: ${S.workouts.filter(w=>w.date>=from&&w.date<=to).length}`,`Mails erledigt: ${S.mails.filter(m=>m.status==='erledigt'&&(m.updatedAt||'').slice(0,10)>=from).length}`,`Reminder erledigt: ${S.reminders.filter(r=>r.status==='erledigt'&&(r.updatedAt||'').slice(0,10)>=from).length}`,`Nettovermögen: ${eur.format(calc().net)}`].join('\n');
 }
 
+// ---------- Einstellungen ----------
+const LIST_META=[['ent','Gesellschaften, Objekte & Bereiche','Zuordnung für Konten, Buchungen, Rechnungen, Verträge, Pflichten und To-Do-Listen. „Privat“ ist fest.',['entity','area']],['areas','Weitere To-Do-Listen','Zusätzlich zu den Bereichen oben.',['area']],['cats','Kategorien','Für Buchungen, Budgets und Planpositionen.',['category']],['tax','Steuer-Zuordnungen','Für Buchungen, Rechnungen und Dokumente; Grundlage des Steuerordners und des Steuerberater-Pakets.',['taxTag']]];
+function listCurrent(key){const l=(S.settings&&S.settings.lists)||{};return key==='areas'?(Array.isArray(l.areas)?l.areas:DEF_LISTS.areas):(Array.isArray(l[key])&&l[key].length?l[key]:DEF_LISTS[key])}
+function applyLists(){const set=(arr,v)=>{if(arr.length!==v.length||arr.some((x,i)=>x!==v[i]))arr.splice(0,arr.length,...v)};set(ENT,listCurrent('ent'));set(CATS,listCurrent('cats'));set(TAX,listCurrent('tax'));set(AREAS,[...ENT,...listCurrent('areas').filter(a=>!ENT.includes(a))])}
+const LIST_SKIP=new Set(['catrules']);
+function listUsage(fields,v){let n=0;Object.keys(SCHEMA).forEach(k=>{if(k.startsWith('hh')||LIST_SKIP.has(k))return;(S[k]||[]).forEach(x=>{if(fields.some(f=>x[f]===v))n++})});return n}
+async function saveList(key,arr){const st=S.settings||{};const lists={...(st.lists||{}),[key]:arr};S.settings={...st,lists};applyLists();render();try{await db.doc('settings/main').set({...st,lists,updatedAt:new Date().toISOString()})}catch(e){toast('Speichern fehlgeschlagen')}}
+async function renameListValue(key,oldV,newV){
+  const meta=LIST_META.find(m=>m[0]===key);const arr=[...listCurrent(key)];const i=arr.indexOf(oldV);if(i<0)return;arr[i]=newV;
+  const st=S.settings||{};const extra={};
+  if(key==='ent'&&st.reserve&&st.reserve[oldV]!=null){const r={...st.reserve};r[newV]=r[oldV];delete r[oldV];extra.reserve=r}
+  const lists={...(st.lists||{}),[key]:arr};S.settings={...st,...extra,lists};applyLists();
+  try{await db.doc('settings/main').set({...st,...extra,lists,updatedAt:new Date().toISOString()})}catch(e){toast('Speichern fehlgeschlagen');return}
+  let n=0;for(const k of Object.keys(SCHEMA)){if(k.startsWith('hh'))continue;for(const x of (S[k]||[])){const p={};meta[3].forEach(f=>{if(x[f]===oldV)p[f]=newV});if(key==='cats'&&k==='catrules'&&x.category===oldV)p.category=newV;if(Object.keys(p).length){await patch(k,x.id,p);n++}}}
+  toast(`Umbenannt${n?` · ${n} Einträge angepasst`:''}`);
+}
+function openListEdit(key,i){
+  const meta=LIST_META.find(m=>m[0]===key);const arr=listCurrent(key);const v=arr[i];const used=listUsage(meta[3],v);const fixed=key==='ent'&&v==='Privat';
+  document.getElementById('overlay').innerHTML=`<div class="scrim" data-scrim><div class="sheet" role="dialog" aria-modal="true" aria-label="Eintrag bearbeiten"><div class="panel-h"><h2>${esc(v)}</h2><button class="btn ghost" data-closesheet aria-label="Schließen">✕</button></div>
+  <p class="sync" style="margin:0">${used?`Wird in ${used} Einträgen verwendet.`:'Wird noch nirgends verwendet.'}</p>
+  ${fixed?'<p class="sync">„Privat“ ist die Standard-Zuordnung und kann nicht umbenannt oder entfernt werden.</p>':`<form id="lForm"><div class="field"><label for="lName">Bezeichnung</label><input id="lName" value="${esc(v)}" autocomplete="off"></div>
+  <p class="sync">Beim Umbenennen werden alle ${used||''} Einträge mit umbenannt.</p>
+  <div class="sheet-actions"><div class="tools"><span id="lDel"><button type="button" class="btn danger" data-ldelask>Entfernen</button></span></div><div class="tools"><button type="button" class="btn" data-closesheet>Abbrechen</button><button class="btn pri" type="submit">Speichern</button></div></div></form>`}</div></div>`;
+  const f=document.getElementById('lForm');if(!f)return;
+  f.addEventListener('submit',async e=>{e.preventDefault();const nv=document.getElementById('lName').value.trim();if(!nv||nv===v){closeSheet();return}if(arr.includes(nv)){toast('Diesen Eintrag gibt es schon');return}closeSheet();await renameListValue(key,v,nv)});
+  f.querySelector('[data-ldelask]').addEventListener('click',()=>{document.getElementById('lDel').innerHTML=`<span class="confirm">${used?`${used} Einträge behalten den Wert.`:''} Entfernen? <button type="button" class="btn sm danger" id="lYes">Ja</button></span>`;document.getElementById('lYes').onclick=async()=>{closeSheet();await saveList(key,arr.filter((x,j)=>j!==i));toast('Entfernt')}});
+}
+V.einstellungen=()=>{
+  const tb=tabs('set',[['listen','Listen'],['reserven','Reserven & Ziele']]);let body='';
+  if(tb.cur==='listen'){
+    body=LIST_META.map(([key,title,desc,fields])=>{const arr=listCurrent(key);return panel(title,`<p class="sync" style="margin:-4px 4px 4px">${esc(desc)}</p><div class="lchips">${arr.map((v,i)=>{const u=listUsage(fields,v);return `<button class="lchip" data-lopen="${key}" data-i="${i}">${esc(v)}${u?`<span class="num">${u}</span>`:''}</button>`}).join('')}</div><form class="quick" data-ladd="${key}"><input class="inp" name="v" placeholder="Neuer Eintrag" aria-label="Neuer Eintrag in ${esc(title)}" autocomplete="off"><button class="btn sm pri" type="submit">Hinzufügen</button></form>`)}).join('')
+      +'<p class="sync">Konten und Objekte selbst pflegst du unter Finanzen → Konten bzw. Immobilien & Firmen. Die Zahl an einem Eintrag zeigt, wie oft er verwendet wird.</p>';
+  } else {
+    const st=S.settings||{};const r=st.reserve||{};
+    body=panel('Mindestreserven',listHTML(ENT.map(e=>`<div class="row" style="cursor:default"><span class="dot acc"></span><div class="t">${esc(e)}</div><div class="r">${r[e]!=null?M(r[e]):'<span class="sync">keine</span>'}</div></div>`),''),'',`<button class="btn sm" data-settings>Bearbeiten</button>`)
+      +panel('Vermögensziel',`<div class="kpis"><div class="kpi"><span class="lbl">Ziel</span><span class="val">${M(st.goalNet)}</span><span class="sub">${st.goalDate?'bis '+fd(st.goalDate):'ohne Datum'}</span></div></div>`,'',`<button class="btn sm" data-settings>Bearbeiten</button>`);
+  }
+  return `<div class="topbar"><div><h1>Einstellungen</h1><p>Listen, Reserven und Ziele, die überall in der App verwendet werden.</p></div></div>${tb.html}${body}`;
+};
+
 // ---------- Rendern ----------
 function counts(){return {todo:S.reminders.filter(r=>r.status!=='erledigt'&&r.due&&days(r.due)<0).length,post:S.mails.filter(m=>m.status!=='erledigt'&&m.priority==='hoch').length,finanzen:S.invoices.filter(i=>i.status==='offen'&&i.due&&days(i.due)<0).length,planung:forecast('Alle').firstShort?1:0,immo:S.duties.filter(d=>d.status!=='erledigt'&&d.due&&days(d.due)<=7).length,verwaltung:S.contracts.filter(c=>{const n=days(c.noticeBy);return n!=null&&n>=0&&n<=14}).length,haushalt:S.hhTasks.filter(t=>days(hhTaskDue(t))<0).length}}
 function render(){
   if(!owner&&ui.sec!=='haushalt')ui.sec='haushalt';
+  applyLists();
   if(loaded&&db&&!hhGenDone){hhGenDone=true;setTimeout(hhGenerate,1200)}
   let cn={};try{cn=loaded?counts():{}}catch(e){cn={}}
   const groups=owner?GROUPS:[['g-zuhause','Zuhause',ICON.home,[['haushalt','Haushalt']]]];
@@ -1639,6 +1793,59 @@ function openAsk(){if(!sampleApi){toast('In dieser Ansicht nicht verfügbar');re
   sh.addEventListener('click',e=>{const q=e.target.closest('[data-askq]');if(q){sendAsk(q.dataset.askq);return}if(e.target.closest('#askReset')){if(ask.ctl)ask.ctl.abort();ask.turns=[];drawAsk();return}if(e.target.closest('#askSend')&&ask.busy){e.preventDefault();if(ask.ctl)ask.ctl.abort()}});
   document.getElementById('askForm').addEventListener('submit',e=>{e.preventDefault();if(ask.busy)return;const v=inp.value;inp.value='';sendAsk(v)});
 }
+// ---------- Steuerberater-Paket ----------
+const CDN={xlsx:'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js',zip:'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js',pdf:'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'};
+const slug=x=>String(x||'').normalize('NFKD').replace(/[̀-ͯ]/g,'').replace(/ß/g,'ss').replace(/[^\w\-]+/g,'_').replace(/_+/g,'_').replace(/^_|_$/g,'').slice(0,40)||'x';
+function taxData(ent,y){
+  const inEnt=x=>(x.entity||'Privat')===ent;
+  const tx=S.transactions.filter(x=>inEnt(x)&&(x.date||'').startsWith(y)&&x.category!=='Umbuchung').sort((a,b)=>a.date<b.date?-1:1);
+  const inv=S.invoices.filter(x=>inEnt(x)&&((x.due||x.paidAt||x.createdAt||'')+'').startsWith(y));
+  const docs=S.documents.filter(x=>inEnt(x)&&((x.date||'')+'').startsWith(y));
+  const hasRec=x=>!!(x.receiptId||x.receipt||(x.invoiceId&&(S.invoices.find(i=>i.id===x.invoiceId)||{}).fileId));
+  const noRec=tx.filter(x=>+x.amount<0&&!hasRec(x));
+  const noTag=ent==='Privat'?[]:tx.filter(x=>!x.taxTag);
+  return {tx,inv,docs,noRec,noTag,hasRec,inc:sum(tx.filter(x=>+x.amount>0),x=>x.amount),out:sum(tx.filter(x=>+x.amount<0),x=>x.amount)};
+}
+async function getFileBlob(id){const url=window.__fileUrl?await window.__fileUrl(id):'/_blob/'+id;const r=await fetch(url);if(!r.ok)throw new Error('Datei '+r.status);return await r.blob()}
+async function saveBlob(name,blob){
+  if(downloadsApi){try{await downloadsApi.save({filename:name,data:blob});return true}catch(e){if(e&&e.code==='declined')return false;}}
+  try{const u=URL.createObjectURL(blob);const a=document.createElement('a');a.href=u;a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(u);a.remove()},4000);return true}catch(e){toast('Download nicht möglich');return false}
+}
+const extOf=(name,type)=>{const m=String(name||'').match(/\.(\w{2,5})$/);if(m)return m[1].toLowerCase();return ({'application/pdf':'pdf','image/jpeg':'jpg','image/png':'png','image/heic':'heic','image/webp':'webp'})[type]||'bin'};
+async function buildTaxPackage(ent,y){
+  const d=taxData(ent,y);if(!d.tx.length&&!d.inv.length&&!d.docs.length){toast('Für '+ent+' '+y+' gibt es keine Daten');return}
+  toast('Paket wird erstellt …');
+  try{await Promise.all([loadScript(CDN.xlsx),loadScript(CDN.zip),loadScript(CDN.pdf)])}catch(e){toast('Bibliotheken konnten nicht geladen werden');return}
+  const XLSX=window.XLSX,JSZip=window.JSZip,jsPDF=window.jspdf&&window.jspdf.jsPDF;
+  const base=`Steuerpaket_${slug(ent)}_${y}`;const zip=new JSZip();const folder=zip.folder(base);const bel=folder.folder('Belege');
+  const used=new Set();const fname=(date,amt,cp,ext)=>{let n=`${date||'ohne-Datum'}_${(amt!=null?(+amt).toFixed(2).replace('.',','):'0')}_${slug(cp)}`;let k=n,i=2;while(used.has(k))k=n+'_'+(i++);used.add(k);return k+'.'+ext};
+  const files=[];// {id,name}
+  const txRows=d.tx.map(x=>{let fn='';const inv=x.invoiceId&&S.invoices.find(i=>i.id===x.invoiceId);const fid=x.receiptId||(inv&&inv.fileId);if(fid){fn=fname(x.date,x.amount,x.counterparty||x.purpose,extOf(x.receiptName||(inv&&inv.fileName),x.receiptType||(inv&&inv.fileType)));files.push({id:fid,name:fn})}
+    return {'Datum':x.date,'Betrag (€)':+x.amount,'Gegenpartei':x.counterparty||'','Verwendungszweck':x.purpose||'','Kategorie':x.category||'','Steuer-Zuordnung':x.taxTag||'','Konto':x.account||'','Beleg':fn||(x.receipt?'Link: '+x.receipt:''),'Rechnung':inv?inv.title:''}});
+  const tags={};d.tx.forEach(x=>{const t=x.taxTag||'(ohne Zuordnung)';const o=tags[t]=tags[t]||{n:0,inc:0,out:0};o.n++;if(+x.amount>0)o.inc+=+x.amount;else o.out+=+x.amount});
+  const cats={};d.tx.forEach(x=>{const t=x.category||'Sonstiges';const o=cats[t]=cats[t]||{n:0,sum:0};o.n++;o.sum+=+x.amount});
+  const r2=v=>Math.round(v*100)/100;
+  const sumRows=[...Object.entries(tags).sort().map(([t,o])=>({'Steuer-Zuordnung':t,'Anzahl':o.n,'Einnahmen (€)':r2(o.inc),'Ausgaben (€)':r2(o.out),'Saldo (€)':r2(o.inc+o.out)})),{'Steuer-Zuordnung':'Summe','Anzahl':d.tx.length,'Einnahmen (€)':r2(d.inc),'Ausgaben (€)':r2(d.out),'Saldo (€)':r2(d.inc+d.out)}];
+  const catRows=Object.entries(cats).sort().map(([c,o])=>({'Kategorie':c,'Anzahl':o.n,'Summe (€)':r2(o.sum)}));
+  const invRows=d.inv.map(i=>{let fn='';if(i.fileId&&!d.tx.some(x=>x.invoiceId===i.id)){fn=fname(i.due||i.paidAt,i.amount,'Rechnung_'+(i.issuer||i.title),extOf(i.fileName,i.fileType));files.push({id:i.fileId,name:fn})}return {'Bezeichnung':i.title||'','Aussteller':i.issuer||'','Art':i.kind||'','Betrag (€)':+i.amount||0,'Fällig':i.due||'','Status':i.status||'','Bezahlt am':i.paidAt||'','Steuer-Zuordnung':i.taxTag||'','Datei':fn}});
+  const docRows=d.docs.map(x=>{let fn='';if(x.fileId){fn=fname(x.date,null,'Dokument_'+x.title,extOf(x.fileName,x.fileType));files.push({id:x.fileId,name:fn})}return {'Titel':x.title||'','Kategorie':x.category||'','Datum':x.date||'','Steuer-Zuordnung':x.taxTag||'','Datei':fn,'Link':x.link||''}});
+  const missRows=d.noRec.map(x=>({'Datum':x.date,'Betrag (€)':+x.amount,'Gegenpartei':x.counterparty||'','Verwendungszweck':x.purpose||'','Steuer-Zuordnung':x.taxTag||''}));
+  const wb=XLSX.utils.book_new();const add=(name,rows,widths)=>{const ws=XLSX.utils.json_to_sheet(rows.length?rows:[{'Hinweis':'keine Einträge'}]);if(widths)ws['!cols']=widths.map(w=>({wch:w}));XLSX.utils.book_append_sheet(wb,ws,name)};
+  add('Übersicht',sumRows,[34,10,16,16,16]);add('Buchungen',txRows,[12,13,30,40,20,30,22,40,26]);add('Kategorien',catRows,[26,10,14]);add('Fehlende Belege',missRows,[12,13,30,40,30]);add('Rechnungen',invRows,[30,24,12,13,12,10,12,30,40]);add('Dokumente',docRows,[30,16,12,30,40,30]);
+  folder.file(`Buchungen_${slug(ent)}_${y}.xlsx`,XLSX.write(wb,{type:'array',bookType:'xlsx'}));
+  let loaded=0,failed=[];for(const f of files){try{bel.file(f.name,await getFileBlob(f.id));loaded++}catch(e){failed.push(f.name)}}
+  if(jsPDF){const doc=new jsPDF({unit:'mm',format:'a4'});let yy=20;const line=(t,sz=10,b=false)=>{doc.setFont('helvetica',b?'bold':'normal');doc.setFontSize(sz);doc.splitTextToSize(String(t),180).forEach(l=>{if(yy>280){doc.addPage();yy=20}doc.text(l,15,yy);yy+=sz*0.5+1.5})};
+    const e2=v=>eur2.format(v);line(`Steuerunterlagen ${y}`,18,true);line(ent,13,true);yy+=2;line(`Erstellt am ${fd(TODAY())} mit Life OS`,9);yy+=4;
+    line('Überblick',12,true);line(`Buchungen: ${d.tx.length}   ·   Einnahmen: ${e2(d.inc)}   ·   Ausgaben: ${e2(d.out)}   ·   Saldo: ${e2(d.inc+d.out)}`);line(`Rechnungen: ${d.inv.length}   ·   Dokumente: ${d.docs.length}   ·   Belege im Paket: ${loaded}`);yy+=3;
+    line('Nach Steuer-Zuordnung',12,true);Object.entries(tags).sort().forEach(([t,o])=>line(`${t}: ${o.n} Buchungen · Einnahmen ${e2(o.inc)} · Ausgaben ${e2(o.out)}`));yy+=3;
+    line('Offene Punkte',12,true);line(d.noRec.length?`${d.noRec.length} Ausgaben ohne Beleg (siehe Blatt „Fehlende Belege“).`:'Alle Ausgaben haben einen Beleg.');if(ent!=='Privat')line(d.noTag.length?`${d.noTag.length} Buchungen ohne Steuer-Zuordnung.`:'Alle Buchungen sind einer Steuer-Zuordnung zugeordnet.');if(failed.length)line(`${failed.length} Belege konnten nicht geladen werden.`);
+    yy+=3;line('Inhalt des Pakets',12,true);line(`Buchungen_${slug(ent)}_${y}.xlsx – Übersicht, alle Buchungen, Kategorien, fehlende Belege, Rechnungen, Dokumente`);line('Belege/ – Dateien benannt nach Datum_Betrag_Gegenpartei; der Dateiname steht in der Spalte „Beleg“ der Buchung.');
+    folder.file('Uebersicht.pdf',doc.output('arraybuffer'))}
+  const blob=await zip.generateAsync({type:'blob'});
+  const okk=await saveBlob(base+'.zip',blob);
+  if(okk)toast(`Paket erstellt · ${d.tx.length} Buchungen, ${loaded} Belege${failed.length?` · ${failed.length} Belege fehlen`:''}`);
+  return {files:files.length,loaded,failed,zip};
+}
 // ---------- Belege per Foto ----------
 function loadScript(src){return new Promise((res,rej)=>{if([...document.scripts].some(x=>x.src===src))return res();const el=document.createElement('script');el.src=src;el.onload=res;el.onerror=()=>rej(new Error('Skript nicht ladbar'));document.head.appendChild(el)})}
 function parseReceiptText(txt){
@@ -1700,6 +1907,17 @@ document.addEventListener('click',async e=>{
   const jd=t.closest('[data-jday]');if(jd){if(ui.jdraft&&ui.jdraft.dirty)await jSave();const n=+jd.dataset.jday;ui.jdate=n===0?TODAY():addDays(ui.jdate||TODAY(),n);if(ui.jdate>TODAY())ui.jdate=TODAY();ui.jdraft=null;render();return}
   const jo=t.closest('[data-jopen]');if(jo){if(ui.jdraft&&ui.jdraft.dirty)await jSave();ui.jdate=jo.dataset.jopen;ui.jdraft=null;render();window.scrollTo(0,0);return}
   const go=t.closest('[data-go]');if(go){if(ui.jdraft&&ui.jdraft.dirty)jSave();ui.sec=go.dataset.go;ui.last[groupOf(ui.sec)[0]]=ui.sec;if(go.dataset.settab){const [a,b]=go.dataset.settab.split(':');ui.tab[a]=b}saveUi();history.replaceState(null,'','#'+ui.sec);render();window.scrollTo(0,0);return}
+  const lop=t.closest('[data-lopen]');if(lop){openListEdit(lop.dataset.lopen,+lop.dataset.i);return}
+  if(t.closest('[data-planedit]')){ui.planEdit=!ui.planEdit;render();return}
+  const prs=t.closest('[data-planreset]');if(prs){if(prs.dataset.sure){ui.planEdit=false;await tpStore([]);toast('Original-Plan wiederhergestellt')}else{prs.dataset.sure='1';prs.textContent='Wirklich zurücksetzen?'}return}
+  const ltg=t.closest('[data-ltag]');if(ltg){ui.tab[ltg.dataset.ltag]=ltg.dataset.v;saveUi();render();return}
+  if(t.closest('[data-libnew]')){openLibEdit(null);return}
+  const led=t.closest('[data-libedit]');if(led){openLibEdit(led.dataset.libedit);return}
+  const ppk=t.closest('[data-ppick]');if(ppk){openPicker(ui.tab.trWo||(isoWeek(new Date()).w%2===0?'1':'2'),ppk.dataset.ppick);return}
+  const pmv=t.closest('[data-pmove]');if(pmv){const [dk,i,d]=pmv.dataset.pmove.split(':');const wo=ui.tab.trWo||(isoWeek(new Date()).w%2===0?'1':'2');await tpEdit(v=>{const a=v.plan[wo][dk];const j=+i+ +d;if(j<0||j>=a.length)return;[a[+i],a[j]]=[a[j],a[+i]]});return}
+  const prm=t.closest('[data-prm]');if(prm){const [dk,i]=prm.dataset.prm.split(':');const wo=ui.tab.trWo||(isoWeek(new Date()).w%2===0?'1':'2');await tpEdit(v=>{v.plan[wo][dk].splice(+i,1)});return}
+  const tpk=t.closest('[data-taxpkg]');if(tpk){tpk.disabled=true;try{await buildTaxPackage(tpk.dataset.ent,tpk.dataset.y)}finally{tpk.disabled=false}return}
+  const tms=t.closest('[data-taxmiss]');if(tms){ui.tab.taxMiss=ui.tab.taxMiss===tms.dataset.taxmiss?'':tms.dataset.taxmiss;render();return}
   const tab=t.closest('[data-tab]');if(tab){ui.tab[tab.dataset.tab]=tab.dataset.val;saveUi();render();return}
   const cnv=t.closest('[data-calnav]');if(cnv){const n=+cnv.dataset.calnav;const v=ui.tab.calv||'liste';const r=ui.calRef||TODAY();if(n===0){ui.calRef=TODAY();ui.calSel=TODAY()}else ui.calRef=v==='liste'?addDays(r,30*n):v==='woche'?addDays(r,7*n):addMonths(r.slice(0,8)+'01',n);render();return}
   const cdy=t.closest('[data-calday]');if(cdy){ui.calSel=cdy.dataset.calday;if((ui.tab.calv||'liste')==='woche'){ui.tab.calv='liste';ui.calRef=cdy.dataset.calday;saveUi()}render();return}
@@ -1744,6 +1962,8 @@ document.addEventListener('change',e=>{
   if(t.dataset.sel){ui.tab[t.dataset.sel]=t.value;saveUi();render();return}
   if(t.dataset.swap!=null&&ui.draft){const k=exKey(+t.dataset.swap);const e0=ui.draft.ex[k]=ui.draft.ex[k]||{};if(t.value)e0.swap=t.value;else delete e0.swap;render();return}
   if(t.id==='impFile'&&t.files[0]){runImport(t.files[0])}
+  if(t.dataset.pset){const [dk,i,f]=t.dataset.pset.split(':');const wo=ui.tab.trWo||(isoWeek(new Date()).w%2===0?'1':'2');const val=tpNum(t.value);tpEdit(v=>{const it=v.plan[wo][dk][+i];if(it)it[f]=val});return}
+  if(t.dataset.pfocus){const dk=t.dataset.pfocus;const val=t.value.trim();tpEdit(v=>{v.focus[dk]=val});return}
   if(t.dataset.receipt&&t.files&&t.files[0]){const f=t.files[0];t.value='';scanReceipt(f,t.dataset.receipt);return}
   if(t.dataset.set){render();return}
 });
@@ -1756,14 +1976,25 @@ let qT;document.addEventListener('input',e=>{const t=e.target;
 });
 document.addEventListener('submit',async e=>{
   if(e.target.id==='todoForm'){e.preventDefault();const raw=document.getElementById('todoTitle').value.trim();if(!raw)return;const q=parseQuick(raw);if(!q.title)return;const dv=document.getElementById('todoDue').value;await save('reminders',null,{title:q.title,due:q.due||dv||null,priority:q.priority,area:e.target.dataset.area||null,flagged:ui.tab.todo==='markiert'?'ja':'nein',status:'offen'});toast('To-Do angelegt');return}
+  if(e.target.dataset&&e.target.dataset.ladd){e.preventDefault();const key=e.target.dataset.ladd;const v=e.target.elements.v.value.trim();if(!v)return;const arr=listCurrent(key);if(arr.includes(v)){toast('Diesen Eintrag gibt es schon');return}await saveList(key,[...arr,v]);toast('Hinzugefügt');return}
   if(e.target.id==='shopForm'){e.preventDefault();const raw=document.getElementById('shopItem').value.trim();if(!raw)return;const qIn=document.getElementById('shopQty').value.trim();const parts=raw.split(/[,;\n]+/).map(x=>x.trim()).filter(Boolean);const names=[];document.getElementById('shopItem').value='';document.getElementById('shopQty').value='';
     for(const p of parts){let item=p,qty=parts.length===1?qIn:'';const m=p.match(/^(\d+[.,]?\d*\s?(?:x|×|g|kg|l|ml|st|stk|pck)?)\s+(.+)$/i);if(m){qty=m[1];item=m[2]}await save('hhShop',null,{item,qty:qty||null,category:deptOf(item),done:false});names.push(item)}
     shopLearn(names);return}
   if(e.target.id==='packForm'){e.preventDefault();const it=document.getElementById('packItem').value.trim();if(!it)return;const tr=S.trips.find(x=>x.id===e.target.dataset.trip);await patch('trips',tr.id,{packing:[...(tr.packing||[]),{t:it,done:false}]});return}
 });
+
+// Drag & Drop im Wochenplan
+let dragSrc=null;
+document.addEventListener('dragstart',e=>{const a=e.target.closest&&e.target.closest('[data-pdrag],[data-libn]');if(!a)return;dragSrc=a.dataset.libn?{lib:a.dataset.libn}:{dk:a.dataset.pdrag.split(':')[0],i:+a.dataset.pdrag.split(':')[1]};try{e.dataTransfer.setData('text/plain',JSON.stringify(dragSrc));e.dataTransfer.effectAllowed='move'}catch(err){}a.classList.add('dragging')});
+document.addEventListener('dragend',e=>{document.querySelectorAll('.dragging,.dropover').forEach(x=>x.classList.remove('dragging','dropover'));dragSrc=null});
+document.addEventListener('dragover',e=>{const z=e.target.closest&&e.target.closest('[data-pdrop]');if(!z||!dragSrc)return;e.preventDefault();document.querySelectorAll('.dropover').forEach(x=>x!==z&&x.classList.remove('dropover'));z.classList.add('dropover')});
+document.addEventListener('drop',async e=>{const z=e.target.closest&&e.target.closest('[data-pdrop]');if(!z||!dragSrc)return;e.preventDefault();const src=dragSrc;dragSrc=null;z.classList.remove('dropover');
+  const dk=z.dataset.pdrop;const wo=ui.tab.trWo||(isoWeek(new Date()).w%2===0?'1':'2');const row=e.target.closest('[data-pdrag]');let idx=row&&row.dataset.pdrag.split(':')[0]===dk?+row.dataset.pdrag.split(':')[1]:null;
+  if(row&&idx!=null){const r=row.getBoundingClientRect();if(e.clientY>r.top+r.height/2)idx++}
+  await tpEdit(v=>{const a=v.plan[wo][dk];let item;if(src.lib)item={n:src.lib,s:3,r:'8'};else{const from=v.plan[wo][src.dk];item=from.splice(src.i,1)[0];if(!item)return;if(src.dk===dk&&idx!=null&&src.i<idx)idx--}if(idx==null||idx>a.length)idx=a.length;a.splice(idx,0,item)})});
 window.addEventListener('hashchange',()=>{const h=location.hash.slice(1);if(SECS.includes(h)&&h!==ui.sec){ui.sec=h;render()}});
 setInterval(()=>{if(!document.getElementById('overlay').innerHTML&&loaded&&!(document.activeElement&&document.activeElement.matches('input,textarea,select')))render()},5*60*1000);
-window.__lifeos={parseReceiptText,searchAll,calItems,occDates,deptOf,exHist,hhGenerate,recNext,S,forecast,calc,hhBalance,hhKey,woFor,dealCalc,loanSim,render,ui,nextDue,parseQuick,ringData};
+window.__lifeos={taxData,buildTaxPackage,planAt,libList,tpEditable,tpEdit,listCurrent,renameListValue,saveList,parseReceiptText,searchAll,calItems,occDates,deptOf,exHist,hhGenerate,recNext,S,forecast,calc,hhBalance,hhKey,woFor,dealCalc,loanSim,render,ui,nextDue,parseQuick,ringData};
 boot();
 })();
 </script>
