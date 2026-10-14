@@ -40,3 +40,6 @@ Die App spricht dieselbe Schnittstelle wie der frühere Artifact-Speicher, desha
 - Zugriff ausschließlich über Login; neue Registrierungen sind gesperrt.
 - Zeilenbasierte Zugriffsregeln in der Datenbank: Rolle `owner` alles, Rolle `partner` nur Collections `hh` und `hh/…`; Dateien nur `owner`.
 - Datenexporte/-importe (`import/`) sind per `.gitignore` vom Repository ausgeschlossen.
+
+## Offline
+Die App startet auch ohne Netz (Service Worker hält App-Hülle und Bibliotheken vor). Gelesene Daten liegen je Sammlung im Browser-Speicher des Geräts; ohne Netz zeigt die App diesen Stand, neue Einträge und Änderungen landen in einer Warteschlange und werden beim nächsten Online-Gang automatisch übertragen. Ein Hinweis unten zeigt „Offline“ und die Zahl wartender Änderungen. Beim Abmelden und beim Wechsel des Kontos wird der lokale Speicher gelöscht.
