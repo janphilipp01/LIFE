@@ -19,7 +19,8 @@
     return;
   }
   const sb = window.supabase.createClient(CFG.url, CFG.anonKey, { auth: { persistSession: true, autoRefreshToken: true } });
-  window.__auth = { signOut: async () => { await sb.auth.signOut(); location.reload(); } };
+  const clearLocal = () => { try { Object.keys(localStorage).filter(k => k.startsWith('lo.cache.') || k === 'lo.queue').forEach(k => localStorage.removeItem(k)); } catch (e) {} };
+  window.__auth = { signOut: async () => { clearLocal(); await sb.auth.signOut(); location.reload(); } };
   window.__fileUrl = async id => { const { data, error } = await sb.storage.from('files').createSignedUrl(id, 600); if (error) throw error; return data.signedUrl; };
 
   // ---------- Dokumenten-Adapter ----------
@@ -32,13 +33,77 @@
   const err = e => { const x = new Error(e.message || String(e)); x.code = e.code; return x; };
   const newId = () => (crypto.randomUUID ? crypto.randomUUID().replace(/-/g, '').slice(0, 20) : Math.random().toString(36).slice(2) + Date.now().toString(36));
 
+  // ---------- Offline: Zwischenspeicher + Warteschlange ----------
+  // Gelesene Daten werden je Sammlung auf dem Gerät gespeichert. Ohne Netz liest die App daraus;
+  // Änderungen landen in einer Warteschlange und werden beim nächsten Online-Gang übertragen.
+  const LS = { get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } },
+               set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
+               del(k) { try { localStorage.removeItem(k); } catch (e) {} } };
+  const CK = c => 'lo.cache.' + c, QK = 'lo.queue';
+  const cacheGet = c => LS.get(CK(c), {});
+  const cachePut = (c, rows, full) => { const m = full ? {} : cacheGet(c); rows.forEach(r => { m[r.id] = r.data; }); LS.set(CK(c), m); };
+  const cacheApply = op => { const m = cacheGet(op.coll); if (op.t === 'set') m[op.id] = op.data; else if (op.t === 'update') m[op.id] = { ...(m[op.id] || {}), ...op.data }; else delete m[op.id]; LS.set(CK(op.coll), m); };
+  const queue = () => LS.get(QK, []);
+  const isNet = e => !navigator.onLine || /fetch|network|load failed|timeout|offline/i.test(String((e && e.message) || e || ''));
+  let flushing = false;
+  async function runOp(op) {
+    if (op.t === 'set') return sb.from('docs').upsert({ coll: op.coll, id: op.id, data: op.data, updated_at: op.at });
+    if (op.t === 'update') return sb.rpc('doc_merge', { p_coll: op.coll, p_id: op.id, p_patch: op.data });
+    return sb.from('docs').delete().eq('coll', op.coll).eq('id', op.id);
+  }
+  async function write(op) {
+    op.at = now();
+    if (navigator.onLine && !queue().length) {
+      let res; try { res = await runOp(op); } catch (e) { res = { error: e }; }
+      if (!res.error) { cacheApply(op); refetchColl(op.coll); return; }
+      if (!isNet(res.error)) throw err(res.error);
+    }
+    const q = queue(); q.push(op); LS.set(QK, q); cacheApply(op); pill(); refetchColl(op.coll);
+  }
+  async function flush() {
+    if (flushing || !navigator.onLine) return; flushing = true;
+    try {
+      let q = queue();
+      while (q.length) {
+        let res; try { res = await runOp(q[0]); } catch (e) { res = { error: e }; }
+        if (res.error && isNet(res.error)) break;
+        if (res.error) console.warn('Life OS: Offline-Änderung verworfen', q[0], res.error);
+        q.shift(); LS.set(QK, q);
+      }
+    } finally { flushing = false; pill(); refetchAll(); }
+  }
+  function pill() {
+    const n = queue().length, off = !navigator.onLine;
+    let el = document.getElementById('lo-offline');
+    if (!n && !off) { if (el) el.remove(); return; }
+    if (!el) { el = document.createElement('div'); el.id = 'lo-offline'; el.className = 'offpill'; el.setAttribute('role', 'status'); document.body.appendChild(el); }
+    el.textContent = off ? (n ? `Offline · ${n} Änderung${n === 1 ? '' : 'en'} wartet` : 'Offline · zeigt gespeicherten Stand') : `Wird übertragen · ${n}`;
+  }
+  const offlineQuery = (coll, opt) => {
+    let rows = Object.entries(cacheGet(coll)).map(([id, data]) => ({ id, data }));
+    (opt.w || []).forEach(([f, op, v]) => { rows = rows.filter(r => { const x = String(r.data[f] ?? ''); v = String(v); return op === '==' ? x === v : op === '!=' ? x !== v : op === '<' ? x < v : op === '<=' ? x <= v : op === '>' ? x > v : op === '>=' ? x >= v : true; }); });
+    if (opt.f) rows.sort((a, b) => (String(a.data[opt.f] ?? '') > String(b.data[opt.f] ?? '') ? 1 : -1) * (opt.d === 'desc' ? -1 : 1));
+    if (opt.n) rows = rows.slice(0, opt.n);
+    return rows;
+  };
+
   function docRef(coll, id) {
     return {
       id,
-      async get() { const { data, error } = await sb.from('docs').select('data').eq('coll', coll).eq('id', id).maybeSingle(); if (error) throw err(error); return { id, exists: !!data, data: () => data ? data.data : undefined }; },
-      async set(x) { const { error } = await sb.from('docs').upsert({ coll, id, data: clean(x), updated_at: now() }); if (error) throw err(error); refetchColl(coll); },
-      async update(x) { const { error } = await sb.rpc('doc_merge', { p_coll: coll, p_id: id, p_patch: clean(x) }); if (error) throw err(error); refetchColl(coll); },
-      async delete() { const { error } = await sb.from('docs').delete().eq('coll', coll).eq('id', id); if (error) throw err(error); refetchColl(coll); },
+      async get() {
+        const local = () => { const d = cacheGet(coll)[id]; return { id, exists: d !== undefined, data: () => d }; };
+        if (!navigator.onLine || queue().length) return local();
+        let res; try { res = await sb.from('docs').select('data').eq('coll', coll).eq('id', id).maybeSingle(); } catch (e) { res = { error: e }; }
+        if (res.error) { if (isNet(res.error)) return local(); throw err(res.error); }
+        const data = res.data; if (data) cachePut(coll, [{ id, data: data.data }]); else { const m = cacheGet(coll); delete m[id]; LS.set(CK(coll), m); }
+        return { id, exists: !!data, data: () => data ? data.data : undefined };
+      },
+      async set(x) { await write({ t: 'set', coll, id, data: clean(x) }); },
+      async update(x) {
+        if (!navigator.onLine || queue().length) { if (cacheGet(coll)[id] === undefined) { const e = new Error('nicht gefunden'); throw e; } }
+        await write({ t: 'update', coll, id, data: clean(x) });
+      },
+      async delete() { await write({ t: 'delete', coll, id }); },
       onSnapshot(next, onErr) {
         const l = { coll, fetch: async () => { try { const s = await docRef(coll, id).get(); next(s); } catch (e) { onErr && onErr(e); } } };
         listeners.add(l); l.fetch(); return () => listeners.delete(l);
@@ -53,11 +118,15 @@
       doc(id) { return docRef(coll, id || newId()); },
       async add(x) { const r = docRef(coll, newId()); await r.set(x); return r; },
       async get() {
+        const local = () => { const docs = offlineQuery(coll, opt).map(r => ({ id: r.id, exists: true, data: () => r.data })); return { docs, size: docs.length, empty: !docs.length, fromCache: true }; };
+        if (!navigator.onLine || queue().length) return local();
         let q = sb.from('docs').select('id,data').eq('coll', coll);
         (opt.w || []).forEach(([f, op, v]) => { const col = 'data->>' + f; const m = { '==': 'eq', '!=': 'neq', '<': 'lt', '<=': 'lte', '>': 'gt', '>=': 'gte' }[op]; if (m) q = q[m](col, v); });
         if (opt.f) q = q.order('data->>' + opt.f, { ascending: opt.d !== 'desc' });
         q = q.limit(opt.n || 5000);
-        const { data, error } = await q; if (error) throw err(error);
+        let res; try { res = await q; } catch (e) { res = { error: e }; }
+        if (res.error) { if (isNet(res.error)) return local(); throw err(res.error); }
+        const data = res.data; cachePut(coll, data || [], !(opt.w || []).length && !opt.n);
         const docs = (data || []).map(r => ({ id: r.id, exists: true, data: () => r.data }));
         return { docs, size: docs.length, empty: !docs.length };
       },
@@ -84,14 +153,16 @@
       const c = (p.new && p.new.coll) || (p.old && p.old.coll); if (c) refetchColl(c); else refetchAll();
     }).subscribe();
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refetchAll(); });
-    window.addEventListener('online', refetchAll);
+    window.addEventListener('online', () => { pill(); flush(); });
+    window.addEventListener('offline', pill);
   }
 
   // ---------- Anmeldung ----------
   async function afterLogin(session) {
     const { data, error } = await sb.from('members').select('role,name').eq('user_id', session.user.id).maybeSingle();
     if (error || !data) { showLogin('Dieser Zugang ist noch nicht freigeschaltet. Jan muss ihn in Supabase als Mitglied eintragen.', false, true); return; }
-    hideLogin(); subscribeRealtime();
+    const prev = LS.get('lo.user', null); if (prev && prev !== session.user.id) clearLocal(); LS.set('lo.user', session.user.id);
+    hideLogin(); subscribeRealtime(); pill(); flush();
     resolveReady({ db, assets, role: data.role, user: session.user, name: data.name });
   }
   function hideLogin() { const el = document.getElementById(LOGIN_ID); if (el) el.remove(); }

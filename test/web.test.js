@@ -73,6 +73,19 @@ async function boot(email,pw,shared){
   ok(!doc.querySelector('[data-ask]'),'Kein Assistent ohne Claude');
   L.ui.sec='finanzen';L.ui.tab.fin='rechnungen';L.render();ok(doc.querySelector('[data-receipt]'),'Beleg-Knopf (Texterkennung)');
   ok(errors.length===0,'Keine Fehler Jan '+JSON.stringify(errors));
+  // Offline: Lesen aus dem Zwischenspeicher, Schreiben in die Warteschlange, Übertragen bei Online
+  let online=true;Object.defineProperty(w.navigator,'onLine',{get:()=>online,configurable:true});
+  online=false;w.dispatchEvent(new w.Event('offline'));await wait(30);
+  ok(doc.getElementById('lo-offline')&&doc.getElementById('lo-offline').textContent.includes('Offline'),'Offline-Hinweis');
+  L.ui.sec='todo';L.ui.tab.todo='alle';L.render();doc.getElementById('todoTitle').value='Offline erfasst';doc.getElementById('todoForm').dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));await wait(250);
+  ok(![...rows.values()].some(r=>r.data.title==='Offline erfasst'),'Offline: noch nicht übertragen');
+  ok(L.S.reminders.some(r=>r.title==='Offline erfasst'),'Offline: sofort in der App sichtbar');
+  ok(doc.getElementById('lo-offline').textContent.includes('1 Änderung'),'Warteschlange angezeigt');
+  ok(L.S.accounts.length===1,'Offline: Daten aus Zwischenspeicher');
+  online=true;w.dispatchEvent(new w.Event('online'));await wait(300);
+  ok([...rows.values()].some(r=>r.data.title==='Offline erfasst'),'Online: Änderung übertragen');
+  ok(!doc.getElementById('lo-offline'),'Hinweis verschwindet');
+  ok(L.S.reminders.length===3,'Kein Duplikat nach Abgleich');
   // Sophie
   ({w,doc,errors,L}=await boot('sophie@x.de','sophie123456',{sb:mkSB(users,members,rows)}));
   ok(L.ui.sec==='haushalt','Sophie landet im Haushalt');
