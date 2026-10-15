@@ -10,13 +10,13 @@ const T = B(); const add = (s: string, n: number) => { const d = new Date(s + 'T
 function mem() {
   const docs = new Map<string, any>(); const put = (c: string, id: string, d: any) => docs.set(c + '|' + id, { coll: c, id, data: structuredClone(d) });
   const secrets: any = { cron: 'geheim' }; const subs: any[] = []; const uploads: any = {}; let touched = 0;
-  const tokens: any = {}; const members: any = { u1: { role: 'owner', name: 'Jan' }, u2: { role: 'partner', name: 'Sophie' } };
+  const tokens: any = {}; const members: any = { u1: { role: 'owner', name: 'Jan', hh: 'a' }, u2: { role: 'user', name: 'Sophie', space: 'sophie', hh: 'b' }, u3: { role: 'partner', name: 'Gast', hh: 'b' } };
   const st = {
     docs: async (cs: string[]) => [...docs.values()].filter(d => cs.includes(d.coll)).map(d => structuredClone(d)),
     get: async (c: string, id: string) => docs.has(c + '|' + id) ? structuredClone(docs.get(c + '|' + id).data) : null,
     set: async (c: string, id: string, d: any) => put(c, id, d),
     merge: async (c: string, id: string, p: any) => { const x = docs.get(c + '|' + id); if (!x) throw new Error('nicht gefunden'); Object.assign(x.data, p); },
-    member: async (u: string) => members[u] || null, members: async () => Object.entries(members).map(([user_id, m]: any) => ({ user_id, role: m.role })),
+    member: async (u: string) => members[u] || null, members: async () => Object.entries(members).map(([user_id, m]: any) => ({ user_id, ...m })),
     token: async (h: string) => tokens[h] || null, touch: async () => { touched++; },
     subs: async () => subs, dropSub: async (e: string) => { const i = subs.findIndex(s => s.endpoint === e); if (i >= 0) subs.splice(i, 1); },
     secret: async (k: string) => secrets[k] ?? null, setSecret: async (k: string, v: string) => { secrets[k] = v; },
@@ -26,7 +26,8 @@ function mem() {
   return { st, put, docs, secrets, subs, uploads, tokens, get touched() { return touched; } };
 }
 const M = mem();
-const tJan = 'a'.repeat(48), tSo = 'b'.repeat(48), tCal = 'c'.repeat(48);
+const tJan = 'a'.repeat(48), tSo = 'b'.repeat(48), tCal = 'c'.repeat(48), tGast = 'd'.repeat(48);
+M.tokens[await hex(tGast)] = { id: 't4', user_id: 'u3', scope: 'handy' };
 M.tokens[await hex(tJan)] = { id: 't1', user_id: 'u1', scope: 'handy' };
 M.tokens[await hex(tSo)] = { id: 't2', user_id: 'u2', scope: 'handy' };
 M.tokens[await hex(tCal)] = { id: 't3', user_id: 'u1', scope: 'kalender' };
@@ -57,10 +58,13 @@ ok(t1.includes('Eier') && t1.includes('Butter') && !t1.includes('Milch'), 'Einka
 r = await post('a=erfassen', { text: 'Heute war gut', art: 'journal' }); await post('a=erfassen', { text: 'Zweiter Gedanke', art: 'journal' });
 ok(M.docs.get('journal|' + T).data.text === 'Heute war gut\nZweiter Gedanke', 'Journal ergänzt');
 r = await post('a=erfassen', { text: 'Auto waschen', art: 'todo' }, tSo); const tso = await r.text();
-ok(tso.startsWith('Auf der Einkaufsliste') && ![...M.docs.values()].some(d => d.coll === 'reminders' && d.data.title === 'Auto waschen'), 'Sophie: nur Haushalt');
+ok(tso.startsWith('To-Do angelegt') && [...M.docs.values()].some(d => d.coll === 'u/sophie/reminders' && d.data.title === 'Auto waschen') && ![...M.docs.values()].some(d => d.coll === 'reminders' && d.data.title === 'Auto waschen'), 'Sophie: eigenes To-Do in ihrem Bereich');
+r = await post('a=erfassen', { text: 'Fenster putzen', art: 'todo' }, tGast); ok((await r.text()).startsWith('Auf der Einkaufsliste'), 'Nur-Haushalt-Zugang: To-Do wird Einkauf');
 r = await call('a=datei&name=Mietvertrag.pdf&t=' + tJan, { method: 'POST', headers: { 'content-type': 'application/pdf' }, body: new Uint8Array([37, 80, 68, 70]) });
 ok(r.status === 200 && Object.keys(M.uploads).length === 1 && [...M.docs.values()].some(d => d.coll === 'documents' && d.data.title === 'Mietvertrag' && d.data.inbox), 'Teilen: Datei gespeichert');
-ok((await call('a=datei&t=' + tSo, { method: 'POST', body: new Uint8Array([1]) })).status === 403, 'Sophie: keine Dateien');
+ok((await call('a=datei&t=' + tGast, { method: 'POST', body: new Uint8Array([1]) })).status === 403, 'Nur-Haushalt-Zugang: keine Dateien');
+r = await call('a=datei&name=Pass.pdf&t=' + tSo, { method: 'POST', headers: { 'content-type': 'application/pdf' }, body: new Uint8Array([1, 2]) });
+ok(Object.keys(M.uploads).some(p => p.startsWith('u/sophie/')) && [...M.docs.values()].some(d => d.coll === 'u/sophie/documents' && d.data.fileId.startsWith('u/sophie/')), 'Sophie: Datei in ihrem Bereich');
 r = await post('a=health', { schritte: '9.412', gewicht: '82,4', kalorien: 610 });
 ok(M.docs.get('health|' + T).data.steps === 9412 && M.docs.get('body|health-' + T).data.weight === 82.4, 'Health: Schritte + Gewicht (deutsches Zahlenformat)');
 r = await call('a=erledigt&aufgabe=bad&t=' + tSo); const te = await r.text();
@@ -69,18 +73,20 @@ ok(M.docs.get('hh/main/tasks|k1').data.lastBy === 'b' && [...M.docs.values()].so
 r = await call('a=einkauf&t=' + tJan); const tk = await r.text(); ok(tk.includes('Kühlregal\n• Milch') && tk.includes('• Eier'), 'Einkaufsliste als Text');
 r = await call('a=widget&t=' + tJan); const w = await r.json();
 ok(w.todos.length === 2 && w.todos[0].ueberfaellig && w.termine.some((e: any) => e.t === 'Jour fixe') && w.gewohnheiten.erledigt === 1, 'Widget Jan: ' + JSON.stringify(w));
-r = await call('a=widget&t=' + tSo); const ws = await r.json(); ok(!ws.todos && ws.haushalt.includes('Müll rausbringen') && ws.termine.length === 1, 'Widget Sophie nur Haushalt');
+r = await call('a=widget&t=' + tSo); const ws = await r.json(); ok(ws.todos && ws.todos.some((x: any) => x.t === 'Auto waschen') === false && ws.haushalt.includes('Müll rausbringen') && ws.termine.length === 1 && !ws.termine.some((e: any) => e.t === 'Jour fixe'), 'Widget Sophie: eigener Bereich + Haushalt, nichts von Jan');
+r = await call('a=widget&t=' + tGast); const wg = await r.json(); ok(!wg.todos && wg.haushalt, 'Widget Nur-Haushalt-Zugang');
 ok((await call('a=widget&t=' + tCal)).status === 403, 'Kalender-Schlüssel kann nichts anderes');
 r = await call('a=kalender&t=' + tCal); const ics = await r.text();
 ok(r.headers.get('content-type')!.startsWith('text/calendar') && ics.includes('RRULE:FREQ=WEEKLY') && ics.includes('EXDATE;TZID=Europe/Berlin:' + add(T, -7).replace(/-/g, '')), 'iCal: Serie mit Ausnahme');
 ok(!ics.includes('Outlook-Termin') && ics.includes('Frist: USt-VA Q3') && ics.includes('🎂 Anna') && ics.includes('Zahlung: Handwerker') && ics.includes('Frist: Erwiderung') && ics.includes('☐ Bank'), 'iCal: Fristen, Geburtstage, Zahlungen, ohne Outlook-Doppel');
 ok(ics.split('\r\n').every(l => l.length <= 75), 'iCal: Zeilen gefaltet');
 ok((await (await call('a=kalender&alle=1&t=' + tCal)).text()).includes('Outlook-Termin'), 'iCal: alle=1 inkl. Outlook');
-const icsS = await (await call('a=kalender&t=' + tSo)).text(); ok(icsS.includes('Essen bei Eltern') && !icsS.includes('USt'), 'iCal Sophie nur Haushalt');
+const icsS = await (await call('a=kalender&t=' + tSo)).text(); ok(icsS.includes('Essen bei Eltern') && !icsS.includes('USt') && !icsS.includes('Anna'), 'iCal Sophie: Haushalt, nichts von Jan');
 ok(M.touched > 0, 'Zuletzt benutzt wird vermerkt');
 
 // Push
 const sent: any[] = []; const sender = async (sub: any, payload: string) => { sent.push({ sub, msg: JSON.parse(payload) }); return sub.gone ? 410 : 201; };
+M.put('u/sophie/reminders', 'sr1', { title: 'Yoga buchen', due: T, status: 'offen' });
 M.subs.push({ endpoint: 'e-jan', user_id: 'u1', sub: { endpoint: 'e-jan' } }, { endpoint: 'e-so', user_id: 'u2', sub: { endpoint: 'e-so' } }, { endpoint: 'e-alt', user_id: 'u1', sub: { endpoint: 'e-alt', gone: true } });
 const preq = (q: string, h: any = {}) => new Request('https://x.supabase.co/functions/v1/push?' + q, { method: 'POST', headers: h });
 const key = await (await P.handle(preq('a=key'), M.st, sender)).json(); ok(key.key && JSON.parse(M.secrets.vapid).privateKey, 'Push-Schlüssel automatisch erzeugt');
@@ -90,7 +96,7 @@ let pr = await (await P.handle(preq('slot=auto', { 'x-cron': 'geheim' }), M.st, 
 sent.length = 0; pr = await (await P.handle(preq('slot=morgen', { 'x-cron': 'geheim' }), M.st, sender)).json();
 const mj = sent.find(s => s.sub.endpoint === 'e-jan'), ms = sent.find(s => s.sub.endpoint === 'e-so');
 ok(mj && mj.msg.body.includes('2 To-Dos (1 überfällig)') && mj.msg.body.includes('Frist USt-VA Q3 in 2 Tagen') && mj.msg.body.includes('Rechnung Handwerker morgen') && mj.msg.body.includes('🎂 Anna') && mj.msg.badge === 2, 'Morgen Jan: ' + (mj && mj.msg.body));
-ok(ms && ms.msg.body.includes('Essen bei Eltern') && ms.msg.body.includes('Müll rausbringen') && !ms.msg.body.includes('USt'), 'Morgen Sophie: ' + (ms && ms.msg.body));
+ok(ms && ms.msg.body.includes('1 To-Do') && ms.msg.body.includes('Essen bei Eltern') && ms.msg.body.includes('Müll rausbringen') && !ms.msg.body.includes('USt') && !ms.msg.body.includes('Anna'), 'Morgen Sophie: ' + (ms && ms.msg.body));
 ok(!M.subs.some(s => s.endpoint === 'e-alt'), 'Abgelaufenes Gerät entfernt');
 sent.length = 0; await P.handle(preq('slot=abend', { 'x-cron': 'geheim' }), M.st, sender);
 ok(sent.length === 1 && sent[0].sub.endpoint === 'e-so' && sent[0].msg.body === 'Heute noch: Müll rausbringen', 'Abend: nur wer noch etwas offen hat');

@@ -5,13 +5,14 @@ import webpush from 'npm:web-push@3.6.7';
 // ---- Life OS · gemeinsame Bausteine der Server-Funktionen (wird beim Bauen in jede Funktion kopiert) ----
 
 type Doc = { coll: string; id: string; data: any };
+type Member = { role: string; name?: string; space?: string | null; hh?: string | null };
 type Store = {
   docs(colls: string[]): Promise<Doc[]>;
   get(coll: string, id: string): Promise<any | null>;
   set(coll: string, id: string, data: any): Promise<void>;
   merge(coll: string, id: string, patch: any): Promise<void>;
-  member(uid: string): Promise<{ role: string; name?: string } | null>;
-  members(): Promise<{ user_id: string; role: string }[]>;
+  member(uid: string): Promise<Member | null>;
+  members(): Promise<(Member & { user_id: string })[]>;
   token(hash: string): Promise<{ id: string; user_id: string; scope: string } | null>;
   touch(id: string): Promise<void>;
   subs(): Promise<{ endpoint: string; user_id: string; sub: any }[]>;
@@ -31,8 +32,8 @@ function supaStore(): Store {
     async get(coll, id) { const d = chk(await sb.from('docs').select('data').eq('coll', coll).eq('id', id).maybeSingle()); return d ? d.data : null; },
     async set(coll, id, data) { chk(await sb.from('docs').upsert({ coll, id, data, updated_at: new Date().toISOString() })); },
     async merge(coll, id, patch) { chk(await sb.rpc('doc_merge', { p_coll: coll, p_id: id, p_patch: patch })); },
-    async member(uid) { return chk(await sb.from('members').select('role,name').eq('user_id', uid).maybeSingle()); },
-    async members() { return chk(await sb.from('members').select('user_id,role')); },
+    async member(uid) { return chk(await sb.from('members').select('role,name,space,hh').eq('user_id', uid).maybeSingle()); },
+    async members() { return chk(await sb.from('members').select('user_id,role,space,hh')); },
     async token(hash) { return chk(await sb.from('device_tokens').select('id,user_id,scope').eq('token_hash', hash).maybeSingle()); },
     async touch(id) { await sb.from('device_tokens').update({ last_used: new Date().toISOString() }).eq('id', id); },
     async subs() { return chk(await sb.from('push_subs').select('endpoint,user_id,sub')); },
@@ -83,6 +84,17 @@ const hhWho = (t: any) => t.who === 'abwechselnd' ? (t.lastBy === 'a' ? 'b' : 'a
 const hhOpenFor = (tasks: any[], me: string, today: string) => tasks.filter(t => t.status !== 'erledigt' && hhDue(t, today) <= today && t.lastDone !== today && [me, 'beide'].includes(hhWho(t)));
 const byColl = (docs: Doc[]) => { const m: Record<string, any[]> = {}; docs.forEach(d => (m[d.coll] = m[d.coll] || []).push({ id: d.id, ...d.data })); return (c: string) => m[c] || []; };
 
+// Jede Person hat einen eigenen Bereich; Haushalt und Reisen sind gemeinsam (gleiche Regeln wie shim.js)
+const mapColl = (m: Member, c: string) => c === 'trips' ? 'hh/main/trips' : (c === 'hh' || c.startsWith('hh/')) ? c : (m.role === 'user' && m.space ? `u/${m.space}/${c}` : c);
+const filePrefix = (m: Member) => m.role === 'user' && m.space ? `u/${m.space}/` : '';
+const hhOf = (m: Member) => m.hh || (m.role === 'owner' ? 'a' : 'b');
+function scoped(st: Store, m: Member): Store {
+  const P = (c: string) => mapColl(m, c);
+  return { ...st,
+    async docs(cs) { const back = new Map(cs.map(c => [P(c), c])); return (await st.docs([...back.keys()])).map(d => ({ ...d, coll: back.get(d.coll) || d.coll })); },
+    get: (c, id) => st.get(P(c), id), set: (c, id, d) => st.set(P(c), id, d), merge: (c, id, p) => st.merge(P(c), id, p) };
+}
+
 // ---- Life OS · Push-Mitteilungen (morgens 7 Uhr, abends 18 Uhr) ----
 // Wird stündlich von der Datenbank aufgerufen (setup_push) und sendet nur zu den beiden Zeiten.
 // ?a=key liefert den öffentlichen Push-Schlüssel, ?slot=test schickt eine Probe an das eigene Gerät.
@@ -96,17 +108,17 @@ async function vapid(st: Store) {
 }
 
 // Inhalt je Person – reine Funktion, damit sie testbar ist
-function compose(C: (c: string) => any[], role: string, slot: string, today: string) {
-  const me = role === 'owner' ? 'a' : 'b';
+function compose(C: (c: string) => any[], m: Member, slot: string, today: string) {
+  const me = hhOf(m), full = m.role !== 'partner';
   const hh = hhOpenFor(C('hh/main/tasks'), me, today);
   if (slot === 'abend') return hh.length ? { title: 'Haushalt', body: 'Heute noch: ' + hh.map(t => t.title).join(', '), badge: hh.length, url: '/#haushalt' } : null;
   const parts: string[] = [];
   let badge = hh.length, url = '/#haushalt';
-  if (role === 'owner') {
+  if (full) {
     const todos = C('reminders').filter(r => r.status !== 'erledigt' && r.due && r.due <= today);
     const late = todos.filter(r => r.due < today).length;
     if (todos.length) parts.push(`${todos.length} To-Do${todos.length === 1 ? '' : 's'}${late ? ` (${late} überfällig)` : ''}`);
-    const ev = C('events').filter(e => occurs(e, today)).sort((x, y) => (x.time || '') < (y.time || '') ? -1 : 1);
+    const ev = [...C('events'), ...C('hh/main/events')].filter(e => occurs(e, today)).sort((x, y) => (x.time || '') < (y.time || '') ? -1 : 1);
     if (ev.length) parts.push(`${ev.length} Termin${ev.length === 1 ? '' : 'e'}${ev[0].time ? `, erster ${ev[0].time} ${ev[0].title}` : ''}`);
     const rel = (d: string) => { const n = diffDays(today, d); return n < 0 ? 'überfällig' : n === 0 ? 'heute' : n === 1 ? 'morgen' : `in ${n} Tagen`; };
     C('duties').filter(d => d.status !== 'erledigt' && (d.extendedTo || d.due) && diffDays(today, d.extendedTo || d.due) <= 3).forEach(d => parts.push(`Frist ${d.title} ${rel(d.extendedTo || d.due)}`));
@@ -152,9 +164,12 @@ async function handle(req: Request, st: Store, send: Sender = webSender, now = n
   const { date: today, hour } = berlin(now);
   const slot = slotQ === 'auto' ? (hour === 7 ? 'morgen' : hour === 18 ? 'abend' : '') : slotQ;
   if (!slot) return json({ skip: hour });
-  const C = byColl(await st.docs(['reminders', 'events', 'duties', 'invoices', 'people', 'hh/main/tasks', 'hh/main/events']));
-  const roles: Record<string, string> = {}; (await st.members()).forEach(m => roles[m.user_id] = m.role);
-  const sent = await deliver(Object.keys(roles), uid => compose(C, roles[uid], slot, today));
+  const msgs: Record<string, any> = {};
+  for (const m of await st.members()) {
+    const C = byColl(await scoped(st, m).docs(['reminders', 'events', 'duties', 'invoices', 'people', 'hh/main/tasks', 'hh/main/events']));
+    msgs[m.user_id] = compose(C, m, slot, today);
+  }
+  const sent = await deliver(Object.keys(msgs), uid => msgs[uid]);
   return json({ slot, sent });
 }
 

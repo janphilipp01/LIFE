@@ -2,13 +2,14 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.45.4';
 
 type Doc = { coll: string; id: string; data: any };
+type Member = { role: string; name?: string; space?: string | null; hh?: string | null };
 type Store = {
   docs(colls: string[]): Promise<Doc[]>;
   get(coll: string, id: string): Promise<any | null>;
   set(coll: string, id: string, data: any): Promise<void>;
   merge(coll: string, id: string, patch: any): Promise<void>;
-  member(uid: string): Promise<{ role: string; name?: string } | null>;
-  members(): Promise<{ user_id: string; role: string }[]>;
+  member(uid: string): Promise<Member | null>;
+  members(): Promise<(Member & { user_id: string })[]>;
   token(hash: string): Promise<{ id: string; user_id: string; scope: string } | null>;
   touch(id: string): Promise<void>;
   subs(): Promise<{ endpoint: string; user_id: string; sub: any }[]>;
@@ -28,8 +29,8 @@ function supaStore(): Store {
     async get(coll, id) { const d = chk(await sb.from('docs').select('data').eq('coll', coll).eq('id', id).maybeSingle()); return d ? d.data : null; },
     async set(coll, id, data) { chk(await sb.from('docs').upsert({ coll, id, data, updated_at: new Date().toISOString() })); },
     async merge(coll, id, patch) { chk(await sb.rpc('doc_merge', { p_coll: coll, p_id: id, p_patch: patch })); },
-    async member(uid) { return chk(await sb.from('members').select('role,name').eq('user_id', uid).maybeSingle()); },
-    async members() { return chk(await sb.from('members').select('user_id,role')); },
+    async member(uid) { return chk(await sb.from('members').select('role,name,space,hh').eq('user_id', uid).maybeSingle()); },
+    async members() { return chk(await sb.from('members').select('user_id,role,space,hh')); },
     async token(hash) { return chk(await sb.from('device_tokens').select('id,user_id,scope').eq('token_hash', hash).maybeSingle()); },
     async touch(id) { await sb.from('device_tokens').update({ last_used: new Date().toISOString() }).eq('id', id); },
     async subs() { return chk(await sb.from('push_subs').select('endpoint,user_id,sub')); },
@@ -79,3 +80,14 @@ const hhDue = (t: any, today: string) => t.repeat === 'einmalig' ? (t.due || tod
 const hhWho = (t: any) => t.who === 'abwechselnd' ? (t.lastBy === 'a' ? 'b' : 'a') : (t.who || 'beide');
 const hhOpenFor = (tasks: any[], me: string, today: string) => tasks.filter(t => t.status !== 'erledigt' && hhDue(t, today) <= today && t.lastDone !== today && [me, 'beide'].includes(hhWho(t)));
 const byColl = (docs: Doc[]) => { const m: Record<string, any[]> = {}; docs.forEach(d => (m[d.coll] = m[d.coll] || []).push({ id: d.id, ...d.data })); return (c: string) => m[c] || []; };
+
+// Jede Person hat einen eigenen Bereich; Haushalt und Reisen sind gemeinsam (gleiche Regeln wie shim.js)
+const mapColl = (m: Member, c: string) => c === 'trips' ? 'hh/main/trips' : (c === 'hh' || c.startsWith('hh/')) ? c : (m.role === 'user' && m.space ? `u/${m.space}/${c}` : c);
+const filePrefix = (m: Member) => m.role === 'user' && m.space ? `u/${m.space}/` : '';
+const hhOf = (m: Member) => m.hh || (m.role === 'owner' ? 'a' : 'b');
+function scoped(st: Store, m: Member): Store {
+  const P = (c: string) => mapColl(m, c);
+  return { ...st,
+    async docs(cs) { const back = new Map(cs.map(c => [P(c), c])); return (await st.docs([...back.keys()])).map(d => ({ ...d, coll: back.get(d.coll) || d.coll })); },
+    get: (c, id) => st.get(P(c), id), set: (c, id, d) => st.set(P(c), id, d), merge: (c, id, p) => st.merge(P(c), id, p) };
+}

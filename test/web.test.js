@@ -11,14 +11,14 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
 function mkSB(users,members,rows,mfaUsers={}){
   // rows: Map key coll|id -> {coll,id,data}
   let session=null;let aal='aal1';const tokens=[];const authCbs=[];const rt=[];
-  const canAccess=c=>{const m=session&&members[session.user.id];if(!m)return false;return m.role==='owner'||(m.role==='partner'&&(c==='hh'||c.startsWith('hh/')))};
+  const canAccess=c=>{const m=session&&members[session.user.id];if(!m)return false;return c==='hh'||c.startsWith('hh/')||(m.role==='owner'&&!c.startsWith('u/'))||(m.role==='user'&&m.space&&c.startsWith('u/'+m.space+'/'))};
   const emit=(row,old)=>rt.forEach(f=>f({new:row,old}));
   function table(name){
     if(name==='device_tokens'){const b={select(){return b},order(){return b},eq(k,v){b._id=v;return b},delete(){b._del=true;return b},then(res){if(b._del){const i=tokens.findIndex(t=>t.id===b._id);if(i>=0)tokens.splice(i,1)}return Promise.resolve({data:tokens.filter(t=>t.user_id===session.user.id),error:null}).then(res)}};return b}
     if(name==='push_subs'){const b={upsert(){return Promise.resolve({error:null})},delete(){return b},eq(){return Promise.resolve({error:null})}};return b}
     const st={f:[],ord:null,lim:null,single:false};
     const run=()=>{
-      if(name==='members'){const uid=st.f.find(x=>x[0]==='user_id');const m=uid&&session&&uid[1]===session.user.id?members[uid[1]]:null;return {data:m?{role:m.role,name:m.name}:null,error:null}}
+      if(name==='members'){const uid=st.f.find(x=>x[0]==='user_id');const m=uid&&session&&uid[1]===session.user.id?members[uid[1]]:null;return {data:m?{role:m.role,name:m.name,space:m.space||null,hh:m.hh||null}:null,error:null}}
       let out=[...rows.values()].filter(r=>canAccess(r.coll)&&st.f.every(([k,v,op])=>{const val=k.startsWith('data->>')?String(r.data[k.slice(7)]??''):r[k];return op==='eq'?val===v:op==='neq'?val!==v:op==='gt'?val>v:op==='gte'?val>=v:op==='lt'?val<v:val<=v}));
       if(st.ord){const k=st.ord[0].slice(7);out.sort((a,b)=>(String(a.data[k]??'')>String(b.data[k]??'')?1:-1)*(st.ord[1]?1:-1))}
       if(st.lim)out=out.slice(0,st.lim);
@@ -103,6 +103,16 @@ async function boot(email,pw,shared){
   ok(doc.getElementById('lo-login')&&doc.getElementById('lo-login').textContent.includes('nicht freigeschaltet'),'Fremder Zugang gesperrt');
   ({w,doc,errors,L}=await boot('jan@x.de','falsch',{sb:mkSB(users,members,rows)}));
   ok(doc.querySelector('.login-msg')&&doc.querySelector('.login-msg').textContent.includes('fehlgeschlagen'),'Falsches Passwort');
+  // Sophie mit eigener App: eigener Bereich, Zuhause gemeinsam
+  const members2={...members,u2:{role:'user',name:'Sophie',space:'sophie',hh:'b'}};put('u/sophie/reminders','sr',{title:'Yoga buchen',status:'offen',due:'2026-10-13'});put('hh/main/trips','tr1',{title:'Lissabon',from:'2026-11-01',to:'2026-11-05'});
+  ({w,doc,errors,L}=await boot('sophie@x.de','sophie123456',{sb:mkSB(users,members2,rows)}));
+  ok(L.S.reminders.length===1&&L.S.reminders[0].title==='Yoga buchen'&&L.S.accounts.length===0,'Sophie: eigene To-Dos, keine Daten von Jan');
+  ok(L.S.hhTasks.length===1&&L.S.trips.length===1,'Sophie: Haushalt und Reisen gemeinsam');
+  L.ui.sec='todo';L.ui.tab.todo='alle';L.render();doc.getElementById('todoTitle').value='Mama anrufen';doc.getElementById('todoForm').dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));await wait(250);
+  ok([...rows.values()].some(r=>r.coll==='u/sophie/reminders'&&r.data.title==='Mama anrufen')&&![...rows.values()].some(r=>r.coll==='reminders'&&r.data.title==='Mama anrufen'),'Sophie: neues To-Do landet in ihrem Bereich');
+  L.ui.sec='haushalt';L.render();ok(doc.getElementById('view').textContent.includes('Gemeinsam mit Jan'),'Sophie: Haushalt aus ihrer Sicht');
+  ok(errors.length===0,'Keine Fehler Sophie (eigene App) '+JSON.stringify(errors));
+  ({w,doc,errors,L}=await boot('jan@x.de','geheim123456',{sb:mkSB(users,members2,rows)}));ok(!L.S.reminders.some(r=>r.title==='Mama anrufen'||r.title==='Yoga buchen')&&L.S.trips.length===1,'Jan sieht nichts von Sophie, Reisen gemeinsam');
   // Zwei-Faktor beim Anmelden + Handy-Bereich
   const mfa={u1:true};const sbM=mkSB(users,members,rows,mfa);
   ({w,doc,errors,L}=await boot('jan@x.de','geheim123456',{sb:sbM}));

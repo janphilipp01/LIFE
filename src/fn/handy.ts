@@ -29,15 +29,16 @@ async function handle(req: Request, st: Store): Promise<Response> {
   const m = await st.member(tk.user_id);
   if (!m) return txt('Kein Zugang.', 403);
   await st.touch(tk.id);
-  const owner = m.role === 'owner', me = owner ? 'a' : 'b';
+  const full = m.role !== 'partner', me = hhOf(m);
+  st = scoped(st, m);
   const a = (u.searchParams.get('a') || 'widget').toLowerCase();
   if (tk.scope === 'kalender' && a !== 'kalender') return txt('Dieser Schlüssel gilt nur für das Kalender-Abo.', 403);
   const today = berlin().date;
-  const ownerOnly = () => txt('Diese Aktion ist nur für Jan freigeschaltet.', 403);
+  const ownerOnly = () => txt('Diese Aktion ist für diesen Zugang nicht freigeschaltet.', 403);
 
   // ---------- Datei aus dem Teilen-Menü ----------
   if (a === 'datei') {
-    if (!owner) return ownerOnly();
+    if (!full) return ownerOnly();
     let bytes: Uint8Array, type = req.headers.get('content-type') || 'application/octet-stream', name = u.searchParams.get('name') || '';
     if (type.includes('multipart/form-data')) {
       const f = await req.formData(); const file = f.get('datei') || f.get('file');
@@ -49,7 +50,7 @@ async function handle(req: Request, st: Store): Promise<Response> {
     const ext = (type.split('/')[1] || 'bin').split(';')[0].replace('jpeg', 'jpg');
     if (!name) name = `Teilen-${today}.${ext}`;
     const safe = name.replace(/[^\w.\-äöüÄÖÜß]+/g, '_').slice(-80);
-    const path = `${today.slice(0, 7)}/${newId()}-${safe}`;
+    const path = `${filePrefix(m)}${today.slice(0, 7)}/${newId()}-${safe}`;
     await st.upload(path, bytes, type);
     const title = name.replace(/\.[a-z0-9]{2,5}$/i, '');
     await st.set('documents', newId(), { title, category: 'Sonstiges', date: today, fileId: path, fileType: type, note: 'Über das Teilen-Menü hinzugefügt', inbox: true, source: 'Teilen', createdAt: nowIso(), updatedAt: nowIso() });
@@ -63,9 +64,9 @@ async function handle(req: Request, st: Store): Promise<Response> {
   if (a === 'erfassen') {
     const text = p('text') || p('t2');
     if (!text) return txt('Kein Text erhalten.', 400);
-    let art = (p('art') || (owner ? 'todo' : 'einkauf')).toLowerCase();
+    let art = (p('art') || (full ? 'todo' : 'einkauf')).toLowerCase();
     const link = p('url');
-    if (!owner && !['einkauf', 'aufgabe'].includes(art)) art = 'einkauf';
+    if (!full && !['einkauf', 'aufgabe'].includes(art)) art = 'einkauf';
     if (art === 'einkauf') {
       const open = (await st.docs(['hh/main/shopping'])).filter(d => !d.data.done).map(d => String(d.data.item || '').toLowerCase());
       const items = text.split(/\n|,|;|\bund\b/i).map(s => s.trim().replace(/^[-•]\s*/, '')).filter(Boolean);
@@ -94,7 +95,7 @@ async function handle(req: Request, st: Store): Promise<Response> {
 
   // ---------- Apple Health ----------
   if (a === 'health') {
-    if (!owner) return ownerOnly();
+    if (!full) return ownerOnly();
     const date = /^\d{4}-\d{2}-\d{2}$/.test(p('datum')) ? p('datum') : today;
     const vals: any = {};
     for (const [k, alias] of [['steps', 'schritte'], ['kcal', 'kalorien'], ['weight', 'gewicht'], ['workouts', 'trainings'], ['sleep', 'schlaf']]) {
@@ -136,10 +137,10 @@ async function handle(req: Request, st: Store): Promise<Response> {
 
   // ---------- Widget ----------
   if (a === 'widget') {
-    const C = byColl(await st.docs(owner ? ['reminders', 'events', 'habits', 'habitlog', 'health', 'hh/main/shopping', 'hh/main/tasks', 'hh/main/events'] : ['hh/main/shopping', 'hh/main/tasks', 'hh/main/events']));
-    const ev = [...(owner ? C('events') : []), ...C('hh/main/events')].filter(e => occurs(e, today)).sort((x, y) => (x.time || '') < (y.time || '') ? -1 : 1).map(e => ({ t: e.title, zeit: e.time || '' }));
+    const C = byColl(await st.docs(full ? ['reminders', 'events', 'habits', 'habitlog', 'health', 'hh/main/shopping', 'hh/main/tasks', 'hh/main/events'] : ['hh/main/shopping', 'hh/main/tasks', 'hh/main/events']));
+    const ev = [...(full ? C('events') : []), ...C('hh/main/events')].filter(e => occurs(e, today)).sort((x, y) => (x.time || '') < (y.time || '') ? -1 : 1).map(e => ({ t: e.title, zeit: e.time || '' }));
     const out: any = { datum: today, termine: ev, einkauf: C('hh/main/shopping').filter(x => !x.done).length, haushalt: hhOpenFor(C('hh/main/tasks'), me, today).map(t => t.title) };
-    if (owner) {
+    if (full) {
       out.todos = C('reminders').filter(r => r.status !== 'erledigt' && r.due && r.due <= today).sort((x, y) => (x.due + (x.time || '')) < (y.due + (y.time || '')) ? -1 : 1).map(r => ({ t: r.title, zeit: r.time || '', ueberfaellig: r.due < today }));
       const hs = C('habits').filter(h => h.active !== 'nein'); const log = (C('habitlog').find(l => l.id === today) || {}).done || {}; const hv = C('health').find(h => h.id === today) || {};
       const auto = (h: any) => !!h.health && +hv[h.health] >= (+h.healthMin || ({ steps: 10000, kcal: 500, workouts: 1 } as any)[h.health] || 1);
@@ -151,7 +152,7 @@ async function handle(req: Request, st: Store): Promise<Response> {
   // ---------- Kalender-Abo (iCal) ----------
   if (a === 'kalender') {
     const alle = u.searchParams.get('alle') === '1';
-    const C = byColl(await st.docs(owner ? ['events', 'reminders', 'duties', 'invoices', 'legal', 'people', 'trips', 'hh/main/events'] : ['hh/main/events']));
+    const C = byColl(await st.docs(full ? ['events', 'reminders', 'duties', 'invoices', 'legal', 'people', 'trips', 'hh/main/events'] : ['hh/main/events']));
     const ve: string[] = [];
     const esc = (s: any) => String(s ?? '').replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n');
     const dt = (d: string) => d.replace(/-/g, '');
@@ -170,8 +171,8 @@ async function handle(req: Request, st: Store): Promise<Response> {
       L.push('END:VEVENT'); ve.push(...L);
     };
     const since = addDays(today, -60);
-    C('hh/main/events').filter(e => e.date && (e.repeat || e.date >= since)).forEach(e => add('hh-' + e.id, (owner ? '🏠 ' : '') + e.title, e.date, { time: e.time, repeat: e.repeat, until: e.until, exdates: e.exdates, note: e.note }));
-    if (owner) {
+    C('hh/main/events').filter(e => e.date && (e.repeat || e.date >= since)).forEach(e => add('hh-' + e.id, (full ? '🏠 ' : '') + e.title, e.date, { time: e.time, repeat: e.repeat, until: e.until, exdates: e.exdates, note: e.note }));
+    if (full) {
       C('events').filter(e => e.date && (alle || !OUTSIDE_CALS.includes(e.calendar)) && (e.repeat || e.date >= since)).forEach(e => add('ev-' + e.id, e.title, e.date, { time: e.time, end: e.end, repeat: e.repeat, until: e.until, exdates: e.exdates, place: e.place, note: e.note }));
       C('reminders').filter(r => r.status !== 'erledigt' && r.due && r.time && r.due >= since).forEach(r => add('todo-' + r.id, '☐ ' + r.title, r.due, { time: r.time, dur: 15 }));
       C('duties').filter(d => d.status !== 'erledigt' && (d.extendedTo || d.due)).forEach(d => add('duty-' + d.id, `Frist: ${d.title}${d.entity ? ' (' + d.entity + ')' : ''}`, d.extendedTo || d.due, { alarm: '-P3D' }));
@@ -180,7 +181,7 @@ async function handle(req: Request, st: Store): Promise<Response> {
       C('people').filter(pp => pp.birthday && /^\d{4}-\d{2}-\d{2}$/.test(pp.birthday)).forEach(pp => add('bday-' + pp.id, `🎂 ${pp.name}`, pp.birthday, { repeat: 'jährlich' }));
       C('trips').filter(t => t.from).forEach(t => add('trip-' + t.id, `✈︎ ${t.title}`, t.from, { to: t.to || t.from }));
     }
-    const ics = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Life OS//DE', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', `X-WR-CALNAME:${owner ? 'Life OS' : 'Haushalt'}`, 'X-WR-TIMEZONE:Europe/Berlin', 'REFRESH-INTERVAL;VALUE=DURATION:PT1H',
+    const ics = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Life OS//DE', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', `X-WR-CALNAME:${full ? 'Life OS' : 'Haushalt'}`, 'X-WR-TIMEZONE:Europe/Berlin', 'REFRESH-INTERVAL;VALUE=DURATION:PT1H',
       'BEGIN:VTIMEZONE', 'TZID:Europe/Berlin', 'BEGIN:DAYLIGHT', 'TZOFFSETFROM:+0100', 'TZOFFSETTO:+0200', 'TZNAME:CEST', 'DTSTART:19700329T020000', 'RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=-1SU', 'END:DAYLIGHT',
       'BEGIN:STANDARD', 'TZOFFSETFROM:+0200', 'TZOFFSETTO:+0100', 'TZNAME:CET', 'DTSTART:19701025T030000', 'RRULE:FREQ=YEARLY;BYMONTH=10;BYDAY=-1SU', 'END:STANDARD', 'END:VTIMEZONE', ...ve, 'END:VCALENDAR'];
     const fold = (l: string) => { const out: string[] = []; let s = l; while (s.length > 72) { out.push(s.slice(0, 72)); s = ' ' + s.slice(72); } out.push(s); return out.join('\r\n'); };

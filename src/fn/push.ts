@@ -12,17 +12,17 @@ async function vapid(st: Store) {
 }
 
 // Inhalt je Person – reine Funktion, damit sie testbar ist
-function compose(C: (c: string) => any[], role: string, slot: string, today: string) {
-  const me = role === 'owner' ? 'a' : 'b';
+function compose(C: (c: string) => any[], m: Member, slot: string, today: string) {
+  const me = hhOf(m), full = m.role !== 'partner';
   const hh = hhOpenFor(C('hh/main/tasks'), me, today);
   if (slot === 'abend') return hh.length ? { title: 'Haushalt', body: 'Heute noch: ' + hh.map(t => t.title).join(', '), badge: hh.length, url: '/#haushalt' } : null;
   const parts: string[] = [];
   let badge = hh.length, url = '/#haushalt';
-  if (role === 'owner') {
+  if (full) {
     const todos = C('reminders').filter(r => r.status !== 'erledigt' && r.due && r.due <= today);
     const late = todos.filter(r => r.due < today).length;
     if (todos.length) parts.push(`${todos.length} To-Do${todos.length === 1 ? '' : 's'}${late ? ` (${late} überfällig)` : ''}`);
-    const ev = C('events').filter(e => occurs(e, today)).sort((x, y) => (x.time || '') < (y.time || '') ? -1 : 1);
+    const ev = [...C('events'), ...C('hh/main/events')].filter(e => occurs(e, today)).sort((x, y) => (x.time || '') < (y.time || '') ? -1 : 1);
     if (ev.length) parts.push(`${ev.length} Termin${ev.length === 1 ? '' : 'e'}${ev[0].time ? `, erster ${ev[0].time} ${ev[0].title}` : ''}`);
     const rel = (d: string) => { const n = diffDays(today, d); return n < 0 ? 'überfällig' : n === 0 ? 'heute' : n === 1 ? 'morgen' : `in ${n} Tagen`; };
     C('duties').filter(d => d.status !== 'erledigt' && (d.extendedTo || d.due) && diffDays(today, d.extendedTo || d.due) <= 3).forEach(d => parts.push(`Frist ${d.title} ${rel(d.extendedTo || d.due)}`));
@@ -68,9 +68,12 @@ async function handle(req: Request, st: Store, send: Sender = webSender, now = n
   const { date: today, hour } = berlin(now);
   const slot = slotQ === 'auto' ? (hour === 7 ? 'morgen' : hour === 18 ? 'abend' : '') : slotQ;
   if (!slot) return json({ skip: hour });
-  const C = byColl(await st.docs(['reminders', 'events', 'duties', 'invoices', 'people', 'hh/main/tasks', 'hh/main/events']));
-  const roles: Record<string, string> = {}; (await st.members()).forEach(m => roles[m.user_id] = m.role);
-  const sent = await deliver(Object.keys(roles), uid => compose(C, roles[uid], slot, today));
+  const msgs: Record<string, any> = {};
+  for (const m of await st.members()) {
+    const C = byColl(await scoped(st, m).docs(['reminders', 'events', 'duties', 'invoices', 'people', 'hh/main/tasks', 'hh/main/events']));
+    msgs[m.user_id] = compose(C, m, slot, today);
+  }
+  const sent = await deliver(Object.keys(msgs), uid => msgs[uid]);
   return json({ slot, sent });
 }
 

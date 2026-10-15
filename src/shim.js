@@ -9,8 +9,9 @@
   window.claude = { use: async name => {
     const ctx = await ready;
     if (name === 'db') return ctx.db;
-    if (name === 'user') return { isOwner: () => ctx.role === 'owner', canEdit: () => true, me: () => ({ id: ctx.user.id }) };
-    if (name === 'assets') return ctx.role === 'owner' ? ctx.assets : null;
+    // owner (Jan) und user (z. B. Sophie) haben je eine vollständige eigene App; partner sieht nur Zuhause
+    if (name === 'user') return { isOwner: () => ctx.role !== 'partner', canEdit: () => true, me: () => ({ id: ctx.user.id }), hhMe: () => ctx.hh };
+    if (name === 'assets') return ctx.role !== 'partner' ? ctx.assets : null;
     return null; // sample u. a. gibt es in der eigenen App nicht
   }};
 
@@ -137,11 +138,14 @@
     };
   }
   const split = p => { const s = p.split('/'); return [s.slice(0, -1).join('/'), s[s.length - 1]]; };
-  const db = { collection: p => query(p), doc: p => { const [c, id] = split(p); return docRef(c, id); } };
+  // Gemeinsam (Zuhause): Haushalt und Reisen. Alles andere liegt im eigenen Bereich der Person.
+  let SPACE = '';
+  const mapColl = c => { if (c === 'trips') return 'hh/main/trips'; if (c === 'hh' || c.startsWith('hh/')) return c; return SPACE ? `u/${SPACE}/${c}` : c; };
+  const db = { collection: p => query(mapColl(p)), doc: p => { const [c, id] = split(p); return docRef(mapColl(c), id); } };
   const assets = {
     async upload(file) {
       const safe = String(file.name || 'datei').replace(/[^\w.\-]+/g, '_').slice(-80);
-      const id = `${new Date().toISOString().slice(0, 7)}/${newId()}-${safe}`;
+      const id = `${SPACE ? `u/${SPACE}/` : ''}${new Date().toISOString().slice(0, 7)}/${newId()}-${safe}`;
       const { error } = await sb.storage.from('files').upload(id, file, { contentType: file.type || undefined, upsert: false });
       if (error) throw err(error);
       return { id, url: null, sizeBytes: file.size, contentType: file.type };
@@ -159,7 +163,7 @@
 
   // ---------- Anmeldung ----------
   async function afterLogin(session) {
-    const { data, error } = await sb.from('members').select('role,name').eq('user_id', session.user.id).maybeSingle();
+    const { data, error } = await sb.from('members').select('role,name,space,hh').eq('user_id', session.user.id).maybeSingle();
     if (error || !data) { showLogin('Dieser Zugang ist noch nicht freigeschaltet. Jan muss ihn in Supabase als Mitglied eintragen.', false, true); return; }
     try {
       const { data: aal } = await sb.auth.mfa.getAuthenticatorAssuranceLevel();
@@ -167,8 +171,10 @@
     } catch (e) { /* offline: weiter mit gespeichertem Stand */ }
     const prev = LS.get('lo.user', null); if (prev && prev !== session.user.id) clearLocal(); LS.set('lo.user', session.user.id);
     hideLogin(); subscribeRealtime(); pill(); flush();
+    SPACE = data.role === 'user' && data.space ? String(data.space).replace(/[^a-z0-9_-]/gi, '') : '';
+    const hh = data.hh || (data.role === 'owner' ? 'a' : 'b');
     CTX = { role: data.role, user: session.user, session };
-    resolveReady({ db, assets, role: data.role, user: session.user, name: data.name });
+    resolveReady({ db, assets, role: data.role, user: session.user, name: data.name, hh });
   }
   let CTX = null;
   function showMfa(session) {
@@ -208,7 +214,7 @@
   const mobile = {
     async mount(el) {
       if (!el || !CTX) return;
-      const owner = CTX.role === 'owner';
+      const owner = CTX.role !== 'partner';
       let mfa = null, toks = [], ps = 'off';
       try { const { data } = await sb.auth.mfa.listFactors(); mfa = data; } catch (e) {}
       try { const { data } = await sb.from('device_tokens').select('id,label,scope,created_at,last_used').order('created_at', { ascending: true }); toks = data || []; } catch (e) {}
@@ -276,7 +282,7 @@
             const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64u(key) });
             const j = sub.toJSON();
             const { error } = await sb.from('push_subs').upsert({ endpoint: j.endpoint, user_id: CTX.user.id, sub: j }); if (error) throw error;
-            if (owner) { const { error: e3 } = await sb.rpc('setup_push', { p_url: CFG.url.replace(/\/$/, '') }); if (e3) console.warn(e3); }
+            if (CTX.role === 'owner') { const { error: e3 } = await sb.rpc('setup_push', { p_url: CFG.url.replace(/\/$/, '') }); if (e3) console.warn(e3); }
             say('Mitteilungen eingeschaltet'); return mobile.mount(el);
           }
           if (act === 'pushoff') {

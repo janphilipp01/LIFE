@@ -807,7 +807,8 @@ const groupOf=sec=>GROUPS.find(g=>g[3].some(x=>x[0]===sec))||GROUPS[0];
 // ---------- Zustand ----------
 const S={}; Object.keys(SCHEMA).forEach(k=>S[k]=[]); Object.assign(S,{health:[],habitlog:[],workouts:[],snapshots:[],journal:[],meta:{},settings:{},hh:{}});
 let assetsApi=null,sampleApi=null,downloadsApi=null;S.tplan=null;
-let db=null, loaded=false, owner=true;
+let db=null, loaded=false, owner=true, hhMe=null;
+const ME=()=>hhMe||(owner?'a':'b');
 const ui={sec:'heute',tab:{},q:{},showMoney:false,wdate:null,draft:null,scen:null,jdate:null,jdraft:null,last:{}};
 try{const v=localStorage.getItem('lifeos.ui');if(v){const o=JSON.parse(v);ui.sec=o.sec||'heute';ui.tab=o.tab||{};ui.last=o.last||{};}}catch(e){}
 const hashSec=(location.hash||'').slice(1); if(SECS.includes(hashSec)) ui.sec=hashSec;
@@ -851,7 +852,7 @@ const path=k=>SCHEMA[k]&&SCHEMA[k].path||k;
 async function boot(){
   render();
   try{ db = window.claude && window.claude.use ? await window.claude.use('db') : null; }catch(e){ db=null; }
-  try{ const u = window.claude && window.claude.use ? await window.claude.use('user') : null; owner = u ? u.isOwner()!==false : true; }catch(e){ owner=true; }
+  try{ const u = window.claude && window.claude.use ? await window.claude.use('user') : null; owner = u ? u.isOwner()!==false : true; hhMe = u&&u.hhMe ? u.hhMe() : null; }catch(e){ owner=true; }
   if(!owner){ ui.sec='haushalt'; }
   if(!db){ document.getElementById('banner').innerHTML='<div class="banner">Der Datenspeicher ist in dieser Ansicht nicht erreichbar. Öffne die App angemeldet in claude.ai, dann erscheinen deine Daten.</div>'; loaded=true; render(); return; }
   const subs=[];
@@ -1776,7 +1777,7 @@ async function hhGenerate(){if(hhGenBusy||!db)return;hhGenBusy=true;let n=0;
       if(last&&last!==r.lastGen)await patch('hhRec',r.id,{lastGen:last})}
     if(n)toast(n===1?'1 wiederkehrende Ausgabe gebucht':n+' wiederkehrende Ausgaben gebucht');if(!shopAutoDone){shopAutoDone=true;await shopAuto()}}catch(e){console.warn(e)}finally{hhGenBusy=false}}
 V.haushalt=()=>{
-  const n=hhNames();const me=owner?'a':'b';
+  const n=hhNames();const me=ME();
   const tb=tabs('hh',[['uebersicht','Übersicht'],['aufgaben','Aufgaben'],['einkauf','Einkauf'],['essen','Essensplan'],['vorrat','Vorräte'],['kalender','Kalender'],['rechnung','Haushaltsrechnung'],['einkommen','Einkommen & Schlüssel'],...(!owner&&window.__mobile?[['handy','Handy']]:[])]);
   const key=hhKey();const bal=hhBalance();
   const balTxt=Math.abs(bal)<0.5?'Ihr seid ausgeglichen.':bal>0?`${esc(n.b)} schuldet ${esc(n.a)} ${M(bal,true)}`:`${esc(n.a)} schuldet ${esc(n.b)} ${M(-bal,true)}`;
@@ -1827,7 +1828,7 @@ V.haushalt=()=>{
     <p class="sync">Der Schlüssel berechnet sich laufend aus allen eingetragenen Einkommen. Jede Ausgabe speichert den Schlüssel vom Zeitpunkt der Erfassung, damit spätere Änderungen alte Ausgaben nicht verschieben.</p>`;
   }
   if(tb.cur==='handy')body='<div id="mobileBox"><div class="empty">Wird geladen …</div></div>';
-  return `<div class="topbar"><div><h1>Haushalt</h1><p>Gemeinsam mit ${esc(n.b)}: Aufgaben, Einkauf, Kalender und Haushaltsrechnung.${owner?' Nur dieser Bereich ist für sie sichtbar.':''}</p></div></div>${tb.html}${body}`;
+  return `<div class="topbar"><div><h1>Haushalt</h1><p>Gemeinsam mit ${esc(ME()==='a'?n.b:n.a)}: Aufgaben, Einkauf, Kalender und Haushaltsrechnung.${owner?' Haushalt und Reisen teilt ihr, alles andere bleibt privat.':''}</p></div></div>${tb.html}${body}`;
 };
 
 function exHist(name,before){const out={last:null,best:0};const ws=[...S.workouts].filter(w=>w.date<before).sort((a,b)=>a.date<b.date?1:-1);
@@ -2100,7 +2101,7 @@ function render(){
   {const mb=document.getElementById('mobileBox');if(mb&&window.__mobile){if(keepMb&&keepMb.dataset.sec===ui.sec){mb.replaceWith(keepMb)}else{mb.dataset.sec=ui.sec;window.__mobile.mount(mb)}}}
   if(loaded){appBadge();processRaw()}
 }
-let badgeLast=-1;function appBadge(){try{if(!navigator.setAppBadge)return;const n=owner?S.reminders.filter(r=>r.status!=='erledigt'&&r.due&&r.due<=TODAY()).length:S.hhTasks.filter(t=>t.status!=='erledigt'&&hhTaskDue(t)<=TODAY()&&t.lastDone!==TODAY()&&['b','beide'].includes(hhAssignee(t))).length;if(n===badgeLast)return;badgeLast=n;(n?navigator.setAppBadge(n):navigator.clearAppBadge()).catch(()=>{})}catch(e){}}
+let badgeLast=-1;function appBadge(){try{if(!navigator.setAppBadge)return;const n=owner?S.reminders.filter(r=>r.status!=='erledigt'&&r.due&&r.due<=TODAY()).length:S.hhTasks.filter(t=>t.status!=='erledigt'&&hhTaskDue(t)<=TODAY()&&t.lastDone!==TODAY()&&[ME(),'beide'].includes(hhAssignee(t))).length;if(n===badgeLast)return;badgeLast=n;(n?navigator.setAppBadge(n):navigator.clearAppBadge()).catch(()=>{})}catch(e){}}
 const rawSeen=new Set();async function processRaw(){if(!owner||!db)return;for(const r of S.reminders.filter(x=>x.raw&&!rawSeen.has(x.id))){rawSeen.add(r.id);const q=parseQuick(r.title);const data={raw:false,title:q.title||r.title,due:q.due||null,time:q.time,priority:q.priority,area:q.area,flagged:q.flagged,repeat:q.recurrence?'wiederkehrend':'einmalig',recurrence:q.recurrence,everyDays:q.everyDays,waitingFor:q.waitingFor||null,followUp:q.waitingFor?addDays(TODAY(),7):null};Object.keys(data).forEach(k=>data[k]==null&&delete data[k]);try{await patch('reminders',r.id,data)}catch(e){}}}
 
 // ---------- Bearbeiten ----------
@@ -2109,9 +2110,9 @@ function openEdit(coll,id,preset){
   const item=id?{...(S[coll].find(x=>x.id===id)||{})}:{...(preset||{})};
   if(!id){ const st=sc.f.find(f=>f.k==='status');if(st&&!item.status)item.status=optList(st)[0][0];
     if(['meals','events','hhExp','hhCal'].includes(coll)&&!item.date)item.date=TODAY();
-    if(coll==='hhExp'){item.paidBy=item.paidBy||(owner?'a':'b');item.split=item.split||'key';item.repeat=item.repeat||'einmalig'}
-    if(coll==='hhRec'){item.paidBy=item.paidBy||(owner?'a':'b');item.split=item.split||'key';item.interval=item.interval||'monatlich';item.start=item.start||TODAY()}
-    if(coll==='hhInc'&&!item.person)item.person=owner?'a':'b';
+    if(coll==='hhExp'){item.paidBy=item.paidBy||(ME());item.split=item.split||'key';item.repeat=item.repeat||'einmalig'}
+    if(coll==='hhRec'){item.paidBy=item.paidBy||(ME());item.split=item.split||'key';item.interval=item.interval||'monatlich';item.start=item.start||TODAY()}
+    if(coll==='hhInc'&&!item.person)item.person=ME();
     if(coll==='hhTasks'){item.cadence=item.cadence||7;item.who=item.who||'abwechselnd';item.repeat=item.repeat||'wiederkehrend'}
     if(coll==='loans'&&!item.inPlan)item.inPlan='ja';
     if(coll==='deals'){item.stage=item.stage||'Gesichtet';item.ancillary=item.ancillary??10;item.inPlan=item.inPlan||'ja'}
@@ -2556,7 +2557,7 @@ async function hhMonthPDF(k){try{await loadScript(CDN.pdf)}catch(e){toast('PDF-B
   const bal=hhBalance();line(`Gesamtstand heute: ${Math.abs(bal)<.5?'ausgeglichen':bal>0?`${n.b} schuldet ${n.a} ${eur2.format(bal)}`:`${n.a} schuldet ${n.b} ${eur2.format(-bal)}`}`,9);
   await saveBlob(`Haushalt_${k}.pdf`,doc.output('blob'))}
 // ---------- Aktionen ----------
-async function hhDone(id){const t=S.hhTasks.find(x=>x.id===id);if(!t)return;save('hhLog',null,{task:t.title,by:owner?'a':'b',date:TODAY(),points:+t.points||1,taskId:id});const before=clone(t);setTimeout(()=>{const u=document.querySelector('.toast:not(.undo)');if(u)u.remove();undoToast('Erledigt',()=>restoreDoc('hhTasks',before))},30);if(t.repeat==='einmalig'){await patch('hhTasks',id,{status:'erledigt',lastDone:TODAY(),lastBy:owner?'a':'b'})}else await patch('hhTasks',id,{lastDone:TODAY(),lastBy:owner?'a':'b'});toast('Erledigt')}
+async function hhDone(id){const t=S.hhTasks.find(x=>x.id===id);if(!t)return;save('hhLog',null,{task:t.title,by:ME(),date:TODAY(),points:+t.points||1,taskId:id});const before=clone(t);setTimeout(()=>{const u=document.querySelector('.toast:not(.undo)');if(u)u.remove();undoToast('Erledigt',()=>restoreDoc('hhTasks',before))},30);if(t.repeat==='einmalig'){await patch('hhTasks',id,{status:'erledigt',lastDone:TODAY(),lastBy:ME()})}else await patch('hhTasks',id,{lastDone:TODAY(),lastBy:ME()});toast('Erledigt')}
 async function dutyDone(id){const d=S.duties.find(x=>x.id===id);if(!d)return;await patch('duties',id,{status:'erledigt',doneAt:TODAY()});const nx=dutyNext(d);if(nx){const {id:_i,...rest}=d;await save('duties',null,{...rest,due:nx,status:'offen',doneAt:null,source:'Wiederholung'});toast('Erledigt · nächster Termin '+fd(nx))}else toast('Erledigt')}
 async function snapshot(){const c=calc();const k=TODAY().slice(0,7);try{await db.collection('snapshots').doc(k).set({month:k,net:Math.round(c.net),liq:Math.round(c.liq),assets:Math.round(c.hv+c.depot+c.recv),debt:Math.round(c.debt),updatedAt:new Date().toISOString()});toast('Snapshot gespeichert')}catch(e){toast('Speichern fehlgeschlagen')}}
 async function saveWorkout(){const d=ui.draft;if(!d||!db)return;const w=woFor(d.date);try{await db.collection('workouts').doc(d.date).set({date:d.date,wo:w.wo,day:w.dk,focus:w.focus,ex:d.ex,note:d.note||'',rpe:d.rpe===''?null:d.rpe,updatedAt:new Date().toISOString()});toast('Einheit gespeichert')}catch(e){toast('Speichern fehlgeschlagen')}}
