@@ -317,6 +317,8 @@
     }
   };
   window.__mobile = mobile;
+  // Benachrichtigt die andere Person (z. B. neue Nachricht auf „Heute“)
+  window.__notify = async kind => { if (!FN || !navigator.onLine) return; const { data } = await sb.auth.getSession(); if (!data.session) return; await fetch(FN + '/push?slot=' + encodeURIComponent(kind), { method: 'POST', headers: { authorization: 'Bearer ' + data.session.access_token } }); };
   function hideLogin() { const el = document.getElementById(LOGIN_ID); if (el) el.remove(); }
   function showLogin(msg, fatal, loggedIn) {
     hideLogin();

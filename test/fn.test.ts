@@ -22,7 +22,7 @@ function mem() {
     subs: async () => subs, dropSub: async (e: string) => { const i = subs.findIndex(s => s.endpoint === e); if (i >= 0) subs.splice(i, 1); },
     secret: async (k: string) => secrets[k] ?? null, setSecret: async (k: string, v: string) => { secrets[k] = v; },
     upload: async (p: string, b: Uint8Array, t: string) => { uploads[p] = { n: b.length, t }; },
-    userFromJwt: async (j: string) => j === 'jwt-jan' ? 'u1' : null,
+    userFromJwt: async (j: string) => j === 'jwt-jan' ? 'u1' : j === 'jwt-so' ? 'u2' : null,
   };
   return { st, put, docs, secrets, subs, uploads, tokens, get touched() { return touched; } };
 }
@@ -118,4 +118,9 @@ ok(!M.subs.some(s => s.endpoint === 'e-alt'), 'Abgelaufenes Gerät entfernt');
 sent.length = 0; await P.handle(preq('slot=abend', { 'x-cron': 'geheim' }), M.st, sender);
 ok(sent.length === 1 && sent[0].sub.endpoint === 'e-so' && sent[0].msg.body === 'Heute noch: Müll rausbringen', 'Abend: nur wer noch etwas offen hat');
 sent.length = 0; const tr = await (await P.handle(preq('slot=test', { authorization: 'Bearer jwt-jan' }), M.st, sender)).json(); ok(tr.sent === 1 && sent[0].sub.endpoint === 'e-jan', 'Probe-Mitteilung');
+// Nachricht an die andere Person
+M.put('hh/main/notes', T + '-b', { from: 'b', date: T, time: '08:10', text: 'Denk an die Blumen 🌷' });
+sent.length = 0; let nr = await (await P.handle(preq('slot=note', { authorization: 'Bearer jwt-so' }), M.st, sender)).json();
+ok(nr.sent === 1 && sent[0].sub.endpoint === 'e-jan' && sent[0].msg.title === 'Nachricht von Sophie' && sent[0].msg.body.includes('Blumen'), 'Nachricht: Mitteilung an Jan');
+ok((await P.handle(preq('slot=note'), M.st, sender)).status === 401, 'Nachricht: nur angemeldet');
 console.log(fails ? `${fails} FEHLER` : 'ALLES OK'); Deno.exit(fails ? 1 : 0);

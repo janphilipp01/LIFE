@@ -111,6 +111,7 @@ async function boot(email,pw,shared){
   L.ui.sec='todo';L.ui.tab.todo='alle';L.render();doc.getElementById('todoTitle').value='Mama anrufen';doc.getElementById('todoForm').dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));await wait(250);
   ok([...rows.values()].some(r=>r.coll==='u/sophie/reminders'&&r.data.title==='Mama anrufen')&&![...rows.values()].some(r=>r.coll==='reminders'&&r.data.title==='Mama anrufen'),'Sophie: neues To-Do landet in ihrem Bereich');
   L.ui.sec='haushalt';L.render();ok(doc.getElementById('view').textContent.includes('Gemeinsam mit Jan'),'Sophie: Haushalt aus ihrer Sicht');
+  L.ui.sec='heute';L.render();ok(doc.getElementById('view').textContent.includes(', Sophie')&&doc.getElementById('view').textContent.includes('Nachricht von Jan'),'Sophie: Begrüßung mit ihrem Namen, Nachricht von Jan');
   ok(errors.length===0,'Keine Fehler Sophie (eigene App) '+JSON.stringify(errors));
   ({w,doc,errors,L}=await boot('jan@x.de','geheim123456',{sb:mkSB(users,members2,rows)}));ok(!L.S.reminders.some(r=>r.title==='Mama anrufen'||r.title==='Yoga buchen')&&L.S.trips.length===1,'Jan sieht nichts von Sophie, Reisen gemeinsam');
   // Zwei-Faktor beim Anmelden + Handy-Bereich

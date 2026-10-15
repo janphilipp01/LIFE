@@ -649,6 +649,20 @@ kbd{font:600 11.5px/1 var(--font);background:rgba(118,118,128,.12);border-radius
 .fseg.sm button{padding:4px 10px;font-size:12px;min-height:26px}
 .pts{display:flex;flex-direction:column;gap:10px}.ptsbar{display:flex;height:12px;border-radius:999px;overflow:hidden;background:rgba(118,118,128,.12)}.ptsbar i{display:block;height:100%}
 @media (max-width:1023px){.mealweek{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.heute-top{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:20px;align-items:stretch}
+.heute-top>.rings{margin:0}
+.note{background:var(--surface);border-radius:var(--r);padding:20px 22px;box-shadow:var(--sh1);display:flex;flex-direction:column;gap:10px;min-width:0}
+.note-h{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.note .lbl{font-size:12px;line-height:16px;font-weight:600;text-transform:uppercase;color:var(--muted)}
+.note-t{margin:0;font-size:17px;line-height:24px;white-space:pre-wrap;overflow-wrap:anywhere}
+.note-t.empty{color:var(--muted);font-size:15px}
+.note-f{display:flex;flex-direction:column;gap:8px;margin-top:auto;padding-top:10px;border-top:.5px solid var(--line,rgba(60,60,67,.12))}
+.note-f textarea{width:100%;resize:vertical;min-height:56px;border:0;border-radius:12px;padding:10px 12px;background:rgba(118,118,128,.12);font:inherit;color:inherit}
+.ringedit{align-self:flex-start;border:0;background:none;padding:4px 0;font:inherit;font-size:13px;color:var(--accent,#007aff);cursor:pointer}
+.rings .leg div.cntrow{flex-direction:row;align-items:center;justify-content:space-between;gap:16px}
+.rings .leg .cntrow>div:first-child{display:flex;flex-direction:column}
+.rings .leg div.cntbtns{flex-direction:row;min-height:0;gap:6px}.cntbtns .btn{min-width:36px;justify-content:center}
+@media (max-width:1023px){.heute-top{grid-template-columns:1fr}}
 </style>
 
 <div class="shell">
@@ -731,6 +745,7 @@ const SCHEMA={
  hhMeal:{one:'Gericht',path:'hh/main/meals',f:[F('dish','Gericht','text'),Q(F('date','Datum','date')),F('slot','Mahlzeit','seg',[['Abend','Abend'],['Mittag','Mittag'],['Frühstück','Frühstück']]),F('cook','Wer kocht','seg',()=>[...PEOPLE(),['beide','beide']]),F('ingredients','Zutaten (eine pro Zeile)','textarea'),F('note','Notiz / Rezept-Link','text')]},
  hhPantry:{one:'Vorrat',path:'hh/main/pantry',f:[F('item','Artikel','text'),F('status','Bestand','seg',[['da','da'],['wenig','wenig'],['alle','alle']]),F('category','Abteilung','select',SHOP_DEPTS)]},
  hhLog:{one:'Erledigt',path:'hh/main/done',f:[F('task','Aufgabe','text'),F('by','Wer','select',PEOPLE),F('date','Datum','date'),F('points','Punkte','number')]},
+ hhNote:{one:'Nachricht',path:'hh/main/notes',f:[F('text','Nachricht','textarea')]},
  hhShop:{one:'Artikel',path:'hh/main/shopping',f:[F('item','Artikel','text'),F('qty','Menge','text'),F('category','Abteilung','select',['Obst & Gemüse','Kühlregal','Brot','Vorrat','Getränke','Drogerie','Haushalt','Sonstiges'])]},
  hhExp:{one:'Haushaltsausgabe',path:'hh/main/expenses',f:[F('title','Wofür','text'),F('amount','Betrag (€)','money'),Q(F('date','Datum','date')),N(F('repeat','Art','seg',[['einmalig','einmalig'],['wiederkehrend','wiederkehrend']])),W(F('interval','Intervall','seg',[['monatlich','monatlich'],['quartalsweise','quartalsweise'],['jährlich','jährlich']]),v=>v.repeat==='wiederkehrend'),W(F('until','Bis (optional)','date'),v=>v.repeat==='wiederkehrend'),F('paidBy','Bezahlt von','seg',PEOPLE),F('split','Aufteilung','seg',()=>[['key','Schlüssel'],['half','50/50'],['a','nur '+hhNames().a],['b','nur '+hhNames().b]]),F('category','Kategorie','select',['Miete','Nebenkosten','Lebensmittel','Haushalt','Freizeit','Urlaub','Anschaffung','Ausgleich','Sonstiges'])]},
  hhRec:{one:'Wiederkehrende Ausgabe',path:'hh/main/recurring',f:[F('title','Wofür','text'),F('amount','Betrag (€)','money'),F('interval','Intervall','seg',[['monatlich','monatlich'],['quartalsweise','quartalsweise'],['jährlich','jährlich']]),F('start','Erstmals am','date'),F('until','Bis (optional)','date'),F('paidBy','Bezahlt von','seg',PEOPLE),F('split','Aufteilung','seg',()=>[['key','Schlüssel'],['half','50/50'],['a','nur '+hhNames().a],['b','nur '+hhNames().b]]),F('category','Kategorie','select',['Miete','Nebenkosten','Lebensmittel','Haushalt','Freizeit','Urlaub','Anschaffung','Sonstiges'])]},
@@ -769,7 +784,7 @@ const SECS=GROUPS.flatMap(g=>g[3].map(x=>x[0]));
 const groupOf=sec=>GROUPS.find(g=>g[3].some(x=>x[0]===sec))||GROUPS[0];
 
 // ---------- Zustand ----------
-const S={}; Object.keys(SCHEMA).forEach(k=>S[k]=[]); Object.assign(S,{health:[],habitlog:[],workouts:[],snapshots:[],journal:[],meta:{},settings:{},hh:{}});
+const S={}; Object.keys(SCHEMA).forEach(k=>S[k]=[]); Object.assign(S,{ringlog:[],health:[],habitlog:[],workouts:[],snapshots:[],journal:[],meta:{},settings:{},hh:{}});
 let assetsApi=null,sampleApi=null,downloadsApi=null;S.tplan=null;
 let db=null, loaded=false, owner=true, hhMe=null;
 const ME=()=>hhMe||(owner?'a':'b');
@@ -833,6 +848,7 @@ async function boot(){
   if(owner){
     sub(db.collection('habitlog').orderBy('date','desc').limit(60),s=>{S.habitlog=s.docs.map(d=>({id:d.id,...d.data()}))});
     sub(db.collection('health').orderBy('date','desc').limit(120),s=>{S.health=s.docs.map(d=>({id:d.id,...d.data()}))});
+    sub(db.collection('ringlog').orderBy('date','desc').limit(60),s=>{S.ringlog=s.docs.map(d=>({id:d.id,...d.data()}))});
     sub(db.collection('workouts').orderBy('date','desc').limit(400),s=>{S.workouts=s.docs.map(d=>({id:d.id,...d.data()}))});
     sub(db.collection('journal').orderBy('date','desc').limit(800),s=>{S.journal=s.docs.map(d=>({id:d.id,...d.data()}))});
     sub(db.collection('snapshots').orderBy('month','asc').limit(240),s=>{S.snapshots=s.docs.map(d=>({id:d.id,...d.data()}))});
@@ -1097,6 +1113,13 @@ function weekAhead(){
 const RING_OPTS={todo:'To-Dos',training:'Training',habits:'Gewohnheiten',inbox:'Postfach',journal:'Journal',haushalt:'Haushalt',lernen:'WHU'};
 // ---------- Ansichten ----------
 const V={};
+function noteHTML(){const n=hhNames();const me=ME(),ot=me==='a'?'b':'a';const t=TODAY();
+  const theirs=[...S.hhNote].filter(x=>x.from===ot).sort((a,b)=>((a.date||'')+(a.updatedAt||''))<((b.date||'')+(b.updatedAt||''))?1:-1)[0];
+  const mine=S.hhNote.find(x=>x.id===`${t}-${me}`);const fresh=theirs&&theirs.date>=addDays(t,-1);
+  const val=ui.noteDraft!=null?ui.noteDraft:(mine?mine.text:'');
+  return `<div class="note"><div class="note-h"><span class="lbl">Nachricht von ${esc(n[ot])}</span>${theirs&&fresh?`<span class="sync">${theirs.date===t?'heute':'gestern'}${theirs.time?' · '+esc(theirs.time):''}</span>`:''}</div>
+  ${theirs&&fresh?`<p class="note-t">${esc(theirs.text)}</p>`:`<p class="note-t empty">Heute noch keine Nachricht.</p>`}
+  <form id="noteForm" class="note-f"><label for="noteIn" class="lbl">Deine Nachricht an ${esc(n[ot])}</label><textarea id="noteIn" rows="2" maxlength="500" placeholder="Schreib etwas für heute …">${esc(val)}</textarea><div class="tools" style="justify-content:space-between"><span class="sync">${mine?'Hinterlassen um '+esc(mine.time||''):'Sieht '+esc(n[ot])+' auf „Heute“'}</span><button class="btn sm pri" type="submit">${mine?'Aktualisieren':'Hinterlassen'}</button></div></form></div>`}
 V.heute=()=>{
   const c=calc(), t=TODAY(), d=new Date(), h=d.getHours();
   const greet=h<11?'Guten Morgen':h<18?'Guten Tag':'Guten Abend';
@@ -1104,16 +1127,16 @@ V.heute=()=>{
   const evNext=[...S.events,...S.hhCal.map(e=>({...e,calendar:'Gemeinsam',_hh:1}))].flatMap(e=>occDates(e,addDays(t,1),addDays(t,3)).map(d=>({...e,date:d}))).sort((a,b)=>(a.date+(a.time||''))<(b.date+(b.time||''))?-1:1);
   const hhToday=S.hhCal.filter(e=>occDates(e,t,t).length);
   const rem=S.reminders.filter(r=>r.status!=='erledigt'&&r.due&&days(r.due)<=1).sort(todoSort);
-  const hhT=S.hhTasks.filter(x=>x.status!=='erledigt'&&days(hhTaskDue(x))<=0&&['a','beide'].includes(hhAssignee(x)));
+  const hhT=S.hhTasks.filter(x=>x.status!=='erledigt'&&days(hhTaskDue(x))<=0&&[ME(),'beide'].includes(hhAssignee(x)));
   const mails=S.mails.filter(m=>m.status!=='erledigt'&&m.priority==='hoch').slice(0,6);
   const dl=deadlines(14);
   const fc=forecast('Alle');
   const w=woFor(t);const wlog=S.workouts.find(x=>x.date===t);
   const meta=S.meta||{};
   return `
-  <div class="topbar"><div><h1>${greet}, Jan</h1><p>${WDL[d.getDay()]}, ${fd(t)} · KW ${w.week}${meta.lastRun?` · aktualisiert ${esc(new Date(meta.lastRun).toLocaleString('de-DE',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}))}`:''}</p></div>
+  <div class="topbar"><div><h1>${greet}, ${esc(hhNames()[ME()])}</h1><p>${WDL[d.getDay()]}, ${fd(t)} · KW ${w.week}${meta.lastRun?` · aktualisiert ${esc(new Date(meta.lastRun).toLocaleString('de-DE',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}))}`:''}</p></div>
   <div class="tools"><button class="btn sm" data-new="reminders">+ Reminder</button><button class="btn sm" data-new="events">+ Termin</button></div></div>
-  ${ringsHTML()}
+  <div class="heute-top">${ringsHTML()}${noteHTML()}</div>
   ${heuteExtras()}
   ${(()=>{const ba=budgetAlerts();return ba.length?`<div class="banner ${ba[0].pc>=100?'bad':''}">Budget: ${ba.slice(0,3).map(x=>`${esc(x.c)} ${Math.round(x.pc)} %`).join(' · ')} ausgeschöpft. <button class="btn sm" data-go="planung" data-settab="plan:budgets">Budgets ansehen</button></div>`:''})()}
   ${fc.firstShort?`<div class="banner bad">Liquiditätswarnung: Laut Plan fällt die Gesamtliquidität im ${monthName(fc.firstShort)} unter die Reserve. <button class="btn sm" data-go="planung">Liquiditätsplan ansehen</button></div>`:''}
@@ -1178,17 +1201,22 @@ function ringData(){
   const mo=S.mails.filter(m=>m.status!=='erledigt'&&m.priority==='hoch').length;const md=S.mails.filter(m=>m.status==='erledigt'&&(m.updatedAt||'').startsWith(t)).length;
   all.inbox={n:'Postfach',v:md,of:md+mo,txt:mo?`${mo} wichtige offen`:'alles Wichtige erledigt',go:'post'};if(!mo)all.inbox.v=all.inbox.of=1;
   const jt=S.journal.find(x=>x.id===t);all.journal={n:'Journal',v:jt&&(jt.text||'').length>20?1:0,of:1,txt:jt?'geschrieben':'noch kein Eintrag',go:'journal'};
-  const hh=S.hhTasks.filter(x=>x.status!=='erledigt'&&days(hhTaskDue(x))<=0&&['a','beide'].includes(hhAssignee(x))).length;const hhd=S.hhTasks.filter(x=>x.lastDone===t&&x.lastBy==='a').length;
+  const hh=S.hhTasks.filter(x=>x.status!=='erledigt'&&days(hhTaskDue(x))<=0&&[ME(),'beide'].includes(hhAssignee(x))).length;const hhd=S.hhTasks.filter(x=>x.lastDone===t&&x.lastBy===ME()).length;
   all.haushalt={n:'Haushalt',v:hhd,of:hhd+hh||1,txt:hh?`${hh} Aufgaben fällig`:'nichts fällig',go:'haushalt'};if(!hh&&!hhd)all.haushalt.v=1;
   const wt=S.reminders.filter(r=>r.area==='WHU'&&((r.status!=='erledigt'&&r.due&&r.due<=t)||(r.status==='erledigt'&&r.doneAt===t)));const wd=wt.filter(r=>r.status==='erledigt').length;
   all.lernen={n:'WHU',v:wd,of:wt.length,txt:wt.length?`${wd} von ${wt.length}`:'nichts fällig',go:'todo'};
+  {const hv=S.health.find(x=>(x.date||x.id)===t)||{};const g=+((S.settings&&S.settings.stepGoal)||10000);const v=+hv.steps||0;all.steps={n:'Schritte',v:Math.min(v,g),of:g,txt:`${nf.format(v)} von ${nf.format(g)}`,go:'persoenlich'}}
+  S.habits.filter(h=>h.active!=='nein').forEach(h=>{const dn=hState(h.id,t)==='done';all['h:'+h.id]={n:h.name,v:dn?1:0,of:1,txt:dn?'erledigt':'heute offen',go:'persoenlich'}});
+  const rl=(S.ringlog.find(x=>x.id===t)||{});ringCounters().forEach(c=>{const v=+rl[c.id]||0;all[c.id]={n:c.name,v:Math.min(v,c.goal),of:c.goal,txt:`${v} von ${c.goal}${c.unit?' '+esc(c.unit):''}`,cnt:c.id}});
   const pick=((S.settings&&S.settings.rings)||['todo','training','habits']).filter(k=>all[k]).slice(0,3);while(pick.length<3)pick.push(['todo','training','habits'].find(k=>!pick.includes(k)));
   return pick.map((k,i)=>({...all[k],key:k,c:`var(--ring${i+1})`}));
 }
+function ringCounters(){return ((S.settings&&S.settings.counters)||[]).filter(c=>c&&c.name).map((c,i)=>({id:'c'+(i+1),name:String(c.name),goal:Math.max(1,+c.goal||1),unit:c.unit||''}))}
+function ringOpts(){const o={...RING_OPTS,steps:'Schritte (Apple Health)'};S.habits.filter(h=>h.active!=='nein').forEach(h=>o['h:'+h.id]='Gewohnheit: '+h.name);ringCounters().forEach(c=>o[c.id]='Zähler: '+c.name);return o}
 function ringsHTML(){
   const d=ringData();const R=[56,42,28];
   const svg=`<svg viewBox="0 0 132 132" role="img" aria-label="Tagesringe: ${d.map(x=>x.n+' '+x.txt).join(', ')}">${d.map((x,i)=>{const r=R[i],C=2*Math.PI*r,p=x.of?Math.min(1,x.v/x.of):0;return `<circle class="rg bgring" cx="66" cy="66" r="${r}"/><circle class="rg fg" cx="66" cy="66" r="${r}" stroke="${x.c}" stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${(C*(1-p)).toFixed(1)}" style="--full:${C.toFixed(1)}" transform="rotate(-90 66 66)" opacity="${p?1:.001}"/>`}).join('')}</svg>`;
-  return `<div class="rings">${svg}<div class="leg">${d.map(x=>`<div role="button" tabindex="0" data-go="${x.go}" style="cursor:pointer"><span style="color:${x.c}">${x.n}</span><b>${x.txt}</b></div>`).join('')}</div></div>`;
+  return `<div class="rings">${svg}<div class="leg">${d.map(x=>x.cnt?`<div class="cntrow"><div><span style="color:${x.c}">${esc(x.n)}</span><b>${x.txt}</b></div><div class="cntbtns"><button class="btn sm" data-cnt="${x.cnt}" data-d="-1" aria-label="${esc(x.n)} minus eins">−</button><button class="btn sm" data-cnt="${x.cnt}" data-d="1" aria-label="${esc(x.n)} plus eins">+</button></div></div>`:`<div role="button" tabindex="0" data-go="${x.go}" style="cursor:pointer"><span style="color:${x.c}">${esc(x.n)}</span><b>${x.txt}</b></div>`).join('')}<button class="ringedit" data-ringedit>Ringe anpassen</button></div></div>`;
 }
 
 const DEAL_CHECK={'Gesichtet':['Exposé geprüft','Lage / Mikrolage bewertet','Erste Kalkulation'],'In Prüfung':['Besichtigung','Grundbuchauszug','Teilungserklärung','WEG-Protokolle (3 Jahre)','Wirtschaftsplan / Hausgeld','Energieausweis','Mietvertrag / Mieterliste','Sanierungskosten geschätzt'],'Angebot':['Kaufpreisangebot abgegeben','Finanzierungsbestätigung','Verhandlung'],'Finanzierung':['Bankunterlagen eingereicht','Bewertung durch Bank','Kreditzusage','Eigenkapitalnachweis'],'Beurkundet':['Kaufvertragsentwurf geprüft','Notartermin','Kaufpreis gezahlt','Grunderwerbsteuer gezahlt','Übergabe / Schlüssel','Grundbucheintrag'],'Abgesagt':[]};
@@ -1994,7 +2022,8 @@ function openListEdit(key,i){
 V.einstellungen=()=>{
   const tb=tabs('set',[['listen','Listen'],['heute','Heute & Ringe'],['darstellung','Darstellung'],['reserven','Reserven & Ziele'],...(window.__mobile?[['handy','Handy & Sicherheit']]:[])]);let body='';
   if(tb.cur==='heute'){const cur=(S.settings&&S.settings.rings)||['todo','training','habits'];
-    body=panel('Die drei Ringe',`<p class="sync" style="margin:-4px 4px 4px">Wähle genau drei Bereiche. Reihenfolge = außen nach innen.</p><div class="lchips">${Object.entries(RING_OPTS).map(([k,l])=>{const i=cur.indexOf(k);return `<button class="lchip ${i>=0?'on':''}" data-ringpick="${k}" aria-pressed="${i>=0}">${i>=0?`<span class="num">${i+1}</span>`:''}${esc(l)}</button>`}).join('')}</div>`)
+    body=panel('Die drei Ringe',`<p class="sync" style="margin:-4px 4px 4px">Wähle genau drei Bereiche. Reihenfolge = außen nach innen.</p><div class="lchips">${Object.entries(ringOpts()).map(([k,l])=>{const i=cur.indexOf(k);return `<button class="lchip ${i>=0?'on':''}" data-ringpick="${k}" aria-pressed="${i>=0}">${i>=0?`<span class="num">${i+1}</span>`:''}${esc(l)}</button>`}).join('')}</div>`)
+      +panel('Eigene Zähler',`<p class="sync" style="margin:-4px 4px 4px">Für alles, was du täglich zählen willst, z. B. Wasser, Seiten gelesen, Meditation. Auf „Heute“ zählst du mit + und −.</p>${[0,1,2].map(i=>{const c=((S.settings&&S.settings.counters)||[])[i]||{};return `<div class="tools" style="flex-wrap:wrap"><input class="inp" data-cntcfg="${i}:name" value="${esc(c.name||'')}" placeholder="Name, z. B. Wasser" aria-label="Zähler ${i+1} Name" style="flex:2;min-width:140px"><input class="inp" type="number" min="1" data-cntcfg="${i}:goal" value="${esc(c.goal||'')}" placeholder="Ziel" aria-label="Zähler ${i+1} Ziel" style="width:90px"><input class="inp" data-cntcfg="${i}:unit" value="${esc(c.unit||'')}" placeholder="Einheit, z. B. Gläser" aria-label="Zähler ${i+1} Einheit" style="flex:1;min-width:120px"></div>`}).join('')}<div class="field"><label for="setSteps">Schrittziel (Ring „Schritte“, Werte aus Apple Health)</label><input id="setSteps" type="number" min="1000" step="500" value="${esc((S.settings&&S.settings.stepGoal)||10000)}" data-setfield="stepGoal" style="max-width:160px"></div>`)
       +panel('Absender für Schreiben',`<div class="field"><label for="setSN">Name</label><input id="setSN" value="${esc((S.settings&&S.settings.senderName)||'Jan Leuker')}" data-setfield="senderName"></div><div class="field"><label for="setSA">Anschrift (eine Zeile pro Zeile)</label><textarea id="setSA" data-setfield="senderAddress">${esc((S.settings&&S.settings.senderAddress)||'')}</textarea></div>`)
       +panel('Tagesplan',`<div class="field"><label for="setTrain">Uhrzeit für Training im Tagesplan</label><input id="setTrain" type="time" value="${esc((S.settings&&S.settings.trainTime)||'18:00')}" data-setfield="trainTime" style="max-width:160px"></div><div class="field"><label for="setBuf">Standard-Puffer vor Terminen mit Ort (Minuten)</label><input id="setBuf" type="number" min="0" step="5" value="${esc((S.settings&&S.settings.defaultBuffer)??'')}" data-setfield="defaultBuffer" style="max-width:160px" placeholder="0"></div>`);
   } else if(tb.cur==='darstellung'){const pr=getPrefs();
@@ -2553,6 +2582,8 @@ document.addEventListener('click',async e=>{
   const jd=t.closest('[data-jday]');if(jd){if(ui.jdraft&&ui.jdraft.dirty)await jSave();const n=+jd.dataset.jday;ui.jdate=n===0?TODAY():addDays(ui.jdate||TODAY(),n);if(ui.jdate>TODAY())ui.jdate=TODAY();ui.jdraft=null;render();return}
   const jo=t.closest('[data-jopen]');if(jo){if(ui.jdraft&&ui.jdraft.dirty)await jSave();ui.jdate=jo.dataset.jopen;ui.jdraft=null;render();window.scrollTo(0,0);return}
   const go=t.closest('[data-go]');if(go){if(ui.jdraft&&ui.jdraft.dirty)jSave();ui.sec=go.dataset.go;ui.last[groupOf(ui.sec)[0]]=ui.sec;if(go.dataset.settab){const [a,b]=go.dataset.settab.split(':');ui.tab[a]=b}saveUi();history.replaceState(null,'','#'+ui.sec);render();window.scrollTo(0,0);return}
+  if(t.closest('[data-ringedit]')){ui.sec='einstellungen';ui.tab.set='heute';location.hash='einstellungen';render();window.scrollTo(0,0);return}
+  const cnb=t.closest('[data-cnt]');if(cnb){e.stopPropagation();if(!db)return;const d=TODAY();const cur={...(S.ringlog.find(x=>x.id===d)||{date:d})};delete cur.id;cur[cnb.dataset.cnt]=Math.max(0,(+cur[cnb.dataset.cnt]||0)+(+cnb.dataset.d));cur.date=d;try{await db.collection('ringlog').doc(d).set(cur)}catch(err){toast('Speichern fehlgeschlagen')}return}
   const rpk=t.closest('[data-ringpick]');if(rpk){let cur=[...((S.settings&&S.settings.rings)||['todo','training','habits'])];const k=rpk.dataset.ringpick;if(cur.includes(k))cur=cur.filter(x=>x!==k);else{cur.push(k);if(cur.length>3)cur.shift()}if(cur.length<3){S.settings={...(S.settings||{}),rings:cur};render();toast('Wähle noch '+(3-cur.length));return}await setSetting({rings:cur});return}
   const prf=t.closest('[data-pref]');if(prf){setPref(prf.dataset.pref,prf.dataset.v);return}
   const lop=t.closest('[data-lopen]');if(lop){openListEdit(lop.dataset.lopen,+lop.dataset.i);return}
@@ -2643,6 +2674,7 @@ document.addEventListener('change',async e=>{
   if(t.dataset.impinc!=null&&IMP){IMP.rows[+t.dataset.impinc].include=t.checked;drawImport();return}
   if(t.dataset.impcat!=null&&IMP){IMP.rows[+t.dataset.impcat].cat=t.value;return}
   if(t.id==='impRemember'&&IMP){IMP.remember=t.checked;return}
+  if(t.dataset.cntcfg){const [i,f]=t.dataset.cntcfg.split(':');const arr=[...(((S.settings&&S.settings.counters)||[]))];while(arr.length<3)arr.push({});arr[+i]={...arr[+i],[f]:f==='goal'?(+t.value||null):t.value.trim()};await setSetting({counters:arr});toast('Gespeichert');return}
   if(t.dataset.setfield){const f=t.dataset.setfield;const v=t.type==='number'?(t.value===''?null:+t.value):t.value;await setSetting({[f]:v});toast('Gespeichert');return}
   if(t.dataset.pset){const [dk,i,f]=t.dataset.pset.split(':');const wo=ui.tab.trWo||(isoWeek(new Date()).w%2===0?'1':'2');const val=tpNum(t.value);tpEdit(v=>{const it=v.plan[wo][dk][+i];if(it)it[f]=val});return}
   if(t.dataset.pfocus){const dk=t.dataset.pfocus;const val=t.value.trim();tpEdit(v=>{v.focus[dk]=val});return}
@@ -2655,6 +2687,7 @@ document.addEventListener('change',async e=>{
 });
 let qT;document.addEventListener('input',e=>{const t=e.target;
   if(t.dataset.q){ui.q[t.dataset.q]=t.value;clearTimeout(qT);qT=setTimeout(render,150);return}
+  if(t.id==='noteIn'){ui.noteDraft=t.value;return}
   if(t.id==='todoTitle'){const pv=document.getElementById('todoPrev');if(pv){const q=parseQuick(t.value);pv.innerHTML=t.value.trim()?quickPreview(q).map(x=>`<span class="pill">${esc(x)}</span>`).join(''):''}return}
   if(t.dataset.set&&ui.draft){const [i,j,f]=t.dataset.set.split(':');const k=exKey(+i);const e0=ui.draft.ex[k]=ui.draft.ex[k]||{};e0.sets=e0.sets||[];while(e0.sets.length<=+j)e0.sets.push({});e0.sets[+j][f]=t.value===''?null:+t.value;return}
   if(t.dataset.wnote!=null&&ui.draft){ui.draft.note=t.value;return}
@@ -2662,6 +2695,7 @@ let qT;document.addEventListener('input',e=>{const t=e.target;
   if(t.dataset.wrpe!=null&&ui.draft){ui.draft.rpe=t.value;return}
 });
 document.addEventListener('submit',async e=>{
+  if(e.target.id==='noteForm'){e.preventDefault();const txt=(document.getElementById('noteIn').value||'').trim();if(!txt)return;const me=ME(),t=TODAY();const now=new Date();const r=await save('hhNote',`${t}-${me}`,{from:me,date:t,time:`${pad(now.getHours())}:${pad(now.getMinutes())}`,text:txt});ui.noteDraft=null;if(r){toast('Nachricht hinterlassen');if(window.__notify)window.__notify('note').catch(()=>{})}return}
   if(e.target.id==='todoForm'){e.preventDefault();const inp=document.getElementById('todoTitle');const raw=inp.value.trim();if(!raw)return;const q=parseQuick(raw);if(!q.title)return;const dv=document.getElementById('todoDue').value;const data={title:q.title,due:q.due||dv||null,time:q.time,priority:q.priority,area:q.area||e.target.dataset.area||null,flagged:q.flagged||(ui.tab.todo==='markiert'?'ja':'nein'),status:'offen',repeat:q.recurrence?'wiederkehrend':'einmalig',recurrence:q.recurrence,everyDays:q.everyDays,waitingFor:q.waitingFor||null,followUp:q.waitingFor?addDays(TODAY(),7):null};Object.keys(data).forEach(k=>data[k]==null&&delete data[k]);inp.value='';const pv=document.getElementById('todoPrev');if(pv)pv.innerHTML='';const rid=await save('reminders',null,data);if(typeof rid==='string')undoToast('To-Do angelegt'+(data.due?' · '+fds(data.due):''),()=>del('reminders',rid,true));return}
   if(e.target.dataset&&e.target.dataset.ladd){e.preventDefault();const key=e.target.dataset.ladd;const v=e.target.elements.v.value.trim();if(!v)return;const arr=listCurrent(key);if(arr.includes(v)){toast('Diesen Eintrag gibt es schon');return}await saveList(key,[...arr,v]);toast('Hinzugefügt');return}
   if(e.target.id==='pantryForm'){e.preventDefault();const v=document.getElementById('pantryItem').value.trim();if(!v)return;for(const x of v.split(/[,;]+/).map(y=>y.trim()).filter(Boolean))await save('hhPantry',null,{item:x,status:'da',category:deptOf(x)});document.getElementById('pantryItem').value='';return}

@@ -64,6 +64,18 @@ async function handle(req: Request, st: Store, send: Sender = webSender, now = n
     const n = await deliver([uid], () => ({ title: 'HOME', body: 'Mitteilungen sind eingeschaltet. So sieht es um 7 und 18 Uhr aus.', badge: 0, url: '/' }));
     return json({ sent: n });
   }
+  if (slotQ === 'note') {
+    const uid = await st.userFromJwt((req.headers.get('authorization') || '').replace(/^Bearer\s+/i, ''));
+    if (!uid) return json({ error: 'nicht angemeldet' }, 401);
+    const all = await st.members(); const me = all.find(m => m.user_id === uid); if (!me) return json({ error: 'kein Zugang' }, 403);
+    const who = hhOf(me); const note = await st.get('hh/main/notes', `${berlin(now).date}-${who}`);
+    if (!note || !note.text) return json({ sent: 0 });
+    const names = ((await st.get('hh', 'main')) || {}).names || { a: 'Jan', b: 'Sophie' };
+    const others = all.filter(m => m.user_id !== uid && m.role !== 'partner').map(m => m.user_id);
+    const body = String(note.text).slice(0, 180);
+    const n = await deliver(others, () => ({ title: `Nachricht von ${names[who] || (who === 'a' ? 'Jan' : 'Sophie')}`, body, url: '/#heute' }));
+    return json({ sent: n });
+  }
   if (req.headers.get('x-cron') !== (await st.secret('cron'))) return json({ error: 'nicht erlaubt' }, 401);
   const { date: today, hour } = berlin(now);
   const slot = slotQ === 'auto' ? (hour === 7 ? 'morgen' : hour === 18 ? 'abend' : '') : slotQ;
