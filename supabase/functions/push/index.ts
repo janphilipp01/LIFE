@@ -11,6 +11,7 @@ type Store = {
   get(coll: string, id: string): Promise<any | null>;
   set(coll: string, id: string, data: any): Promise<void>;
   merge(coll: string, id: string, patch: any): Promise<void>;
+  del(coll: string, id: string): Promise<void>;
   member(uid: string): Promise<Member | null>;
   members(): Promise<(Member & { user_id: string })[]>;
   token(hash: string): Promise<{ id: string; user_id: string; scope: string } | null>;
@@ -32,6 +33,7 @@ function supaStore(): Store {
     async get(coll, id) { const d = chk(await sb.from('docs').select('data').eq('coll', coll).eq('id', id).maybeSingle()); return d ? d.data : null; },
     async set(coll, id, data) { chk(await sb.from('docs').upsert({ coll, id, data, updated_at: new Date().toISOString() })); },
     async merge(coll, id, patch) { chk(await sb.rpc('doc_merge', { p_coll: coll, p_id: id, p_patch: patch })); },
+    async del(coll, id) { chk(await sb.from('docs').delete().eq('coll', coll).eq('id', id)); },
     async member(uid) { return chk(await sb.from('members').select('role,name,space,hh').eq('user_id', uid).maybeSingle()); },
     async members() { return chk(await sb.from('members').select('user_id,role,space,hh')); },
     async token(hash) { return chk(await sb.from('device_tokens').select('id,user_id,scope').eq('token_hash', hash).maybeSingle()); },
@@ -92,7 +94,7 @@ function scoped(st: Store, m: Member): Store {
   const P = (c: string) => mapColl(m, c);
   return { ...st,
     async docs(cs) { const back = new Map(cs.map(c => [P(c), c])); return (await st.docs([...back.keys()])).map(d => ({ ...d, coll: back.get(d.coll) || d.coll })); },
-    get: (c, id) => st.get(P(c), id), set: (c, id, d) => st.set(P(c), id, d), merge: (c, id, p) => st.merge(P(c), id, p) };
+    get: (c, id) => st.get(P(c), id), set: (c, id, d) => st.set(P(c), id, d), merge: (c, id, p) => st.merge(P(c), id, p), del: (c, id) => st.del(P(c), id) };
 }
 
 // ---- Life OS · Push-Mitteilungen (morgens 7 Uhr, abends 18 Uhr) ----

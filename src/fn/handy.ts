@@ -1,6 +1,6 @@
 // ---- Life OS · Handy-Schnittstelle für Kurzbefehle, Siri, Teilen-Menü, NFC, Widget und Kalender-Abo ----
 // Aufruf: https://<projekt>.supabase.co/functions/v1/handy?a=<aktion>&t=<persönlicher Schlüssel>
-// Aktionen: erfassen · datei · health · erledigt · einkauf · widget · kalender
+// Aktionen: erfassen · datei · health · erledigt · einkauf · widget · kalender · import
 
 const sha256 = async (s: string) => Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)))).map(b => b.toString(16).padStart(2, '0')).join('');
 const OUTSIDE_CALS = ['Lestate (Outlook)', 'iCloud']; // stehen ohnehin schon im iPhone-Kalender
@@ -188,7 +188,41 @@ async function handle(req: Request, st: Store): Promise<Response> {
     return new Response(ics.map(fold).join('\r\n') + '\r\n', { headers: { ...CORS, 'content-type': 'text/calendar; charset=utf-8', 'cache-control': 'no-store' } });
   }
 
-  return txt('Unbekannte Aktion. Möglich: erfassen, datei, health, erledigt, einkauf, widget, kalender.', 400);
+  // ---------- Import (z. B. Morgen-Aktualisierung aus dem eigenen Claude-Konto) ----------
+  // GET ?a=import → Stand (lastRun). POST JSON { items: [...], sources: "…" } → schreibt nur in den Bereich dieses Schlüssels.
+  if (a === 'import') {
+    if (!full) return ownerOnly();
+    if (req.method !== 'POST') return json({ lastRun: ((await st.get('meta', 'sync')) || {}).lastRun || null, heute: today });
+    const items = Array.isArray(body.items) ? body.items.slice(0, 200) : [];
+    const S = (v: any, n = 300) => v === undefined || v === null ? null : String(v).slice(0, n);
+    const D = (v: any) => /^\d{4}-\d{2}-\d{2}$/.test(String(v || '')) ? String(v) : null;
+    const T = (v: any) => /^\d{1,2}:\d{2}$/.test(String(v || '')) ? String(v).padStart(5, '0') : null;
+    const ID = (p: string, v: any) => v ? p + String(v).replace(/[^\w-]/g, '').slice(0, 80) : p + newId();
+    const pick = (o: any) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== null && v !== undefined && v !== ''));
+    const out = { angelegt: 0, aktualisiert: 0, geloescht: 0, uebersprungen: 0 };
+    for (const it of items) {
+      const art = String(it.art || '').toLowerCase(); let coll = '', id = '', data: any = null;
+      if (art === 'mail') { coll = 'mails'; id = ID('m-', it.id); data = pick({ subject: S(it.betreff ?? it.subject), from: S(it.von ?? it.from), account: S(it.konto ?? it.account ?? 'Privat', 40), date: D(it.datum ?? it.date), priority: ['hoch', 'mittel', 'niedrig'].includes(it.prioritaet ?? it.priority) ? (it.prioritaet ?? it.priority) : 'mittel', action: S(it.aktion ?? it.action), summary: S(it.zusammenfassung ?? it.summary, 600), link: S(it.link, 500), source: 'Import' }); }
+      else if (art === 'todo') { coll = 'reminders'; id = ID('i-', it.id); data = pick({ title: S(it.titel ?? it.title), due: D(it.faellig ?? it.due), time: T(it.uhrzeit ?? it.time), note: S(it.notiz ?? it.note, 1000), repeat: 'einmalig', source: 'Import' }); }
+      else if (art === 'termin') {
+        coll = 'events'; id = ID('ev-', it.id);
+        if (it.abgesagt) { if (await st.get(coll, id)) { await st.del(coll, id); out.geloescht++; } continue; }
+        data = pick({ title: S(it.titel ?? it.title), date: D(it.datum ?? it.date), time: T(it.beginn ?? it.time), end: T(it.ende ?? it.end), place: S(it.ort ?? it.place), calendar: S(it.kalender ?? it.calendar ?? 'Privat', 40), repeat: ['täglich', 'wöchentlich', 'alle 2 Wochen', 'monatlich', 'jährlich'].includes(it.wiederholung ?? it.repeat) ? (it.wiederholung ?? it.repeat) : null, until: D(it.bis ?? it.until), source: 'Import' });
+      }
+      else if (art === 'rechnung') { coll = 'invoices'; id = ID('inv-', it.id); data = pick({ title: S(it.titel ?? it.title), issuer: S(it.aussteller ?? it.issuer), kind: 'Rechnung', amount: num(it.betrag ?? it.amount), due: D(it.faellig ?? it.due), link: S(it.link, 500), source: 'Import' }); }
+      else if (art === 'einkauf') { coll = 'hh/main/shopping'; id = ID('s-', it.id); data = pick({ item: S(it.artikel ?? it.item ?? it.titel, 80), done: false, note: 'Import' }); }
+      if (!coll || !data || !(data.title || data.subject || data.item)) { out.uebersprungen++; continue; }
+      if (coll === 'events' && !data.date) { out.uebersprungen++; continue; }
+      const cur = await st.get(coll, id);
+      if (cur) { const { status, done, ...rest } = data; await st.merge(coll, id, { ...rest, updatedAt: nowIso() }); out.aktualisiert++; }
+      else { await st.set(coll, id, { ...data, ...(coll === 'hh/main/shopping' ? {} : { status: 'offen' }), createdAt: nowIso(), updatedAt: nowIso() }); out.angelegt++; }
+    }
+    const cur = (await st.get('meta', 'sync')) || {};
+    await st.set('meta', 'sync', { ...cur, lastRun: nowIso(), sources: S(body.sources, 200) || cur.sources || 'Import' });
+    return json(out);
+  }
+
+  return txt('Unbekannte Aktion. Möglich: erfassen, datei, health, erledigt, einkauf, widget, kalender, import.', 400);
 }
 
 if (!Deno.env.get('LIFEOS_TEST')) { const st = supaStore(); Deno.serve(req => handle(req, st).catch(e => { console.error(e); return txt('Fehler: ' + e.message, 500); })); }

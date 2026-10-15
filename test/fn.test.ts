@@ -15,6 +15,7 @@ function mem() {
     docs: async (cs: string[]) => [...docs.values()].filter(d => cs.includes(d.coll)).map(d => structuredClone(d)),
     get: async (c: string, id: string) => docs.has(c + '|' + id) ? structuredClone(docs.get(c + '|' + id).data) : null,
     set: async (c: string, id: string, d: any) => put(c, id, d),
+    del: async (c: string, id: string) => { docs.delete(c + '|' + id); },
     merge: async (c: string, id: string, p: any) => { const x = docs.get(c + '|' + id); if (!x) throw new Error('nicht gefunden'); Object.assign(x.data, p); },
     member: async (u: string) => members[u] || null, members: async () => Object.entries(members).map(([user_id, m]: any) => ({ user_id, ...m })),
     token: async (h: string) => tokens[h] || null, touch: async () => { touched++; },
@@ -83,6 +84,22 @@ ok(ics.split('\r\n').every(l => l.length <= 75), 'iCal: Zeilen gefaltet');
 ok((await (await call('a=kalender&alle=1&t=' + tCal)).text()).includes('Outlook-Termin'), 'iCal: alle=1 inkl. Outlook');
 const icsS = await (await call('a=kalender&t=' + tSo)).text(); ok(icsS.includes('Essen bei Eltern') && !icsS.includes('USt') && !icsS.includes('Anna'), 'iCal Sophie: Haushalt, nichts von Jan');
 ok(M.touched > 0, 'Zuletzt benutzt wird vermerkt');
+// Import für Sophies Bereich
+const imp = (body: any, tok = tSo) => call('a=import&t=' + tok, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+let ir = await (await imp({ sources: 'Gmail ✓', items: [
+  { art: 'mail', id: 'abc@x', betreff: 'Vertrag Yoga', von: 'Studio', datum: T, prioritaet: 'hoch', aktion: 'unterschreiben' },
+  { art: 'todo', id: 't1', titel: 'Steuer-ID schicken', faellig: T },
+  { art: 'termin', id: 'e1', titel: 'Zahnarzt', datum: T, beginn: '9:30' },
+  { art: 'rechnung', id: 'r1', titel: 'Strom', aussteller: 'EON', betrag: '45,90', faellig: T },
+  { art: 'quatsch', titel: 'x' }] })).json();
+ok(ir.angelegt === 4 && ir.uebersprungen === 1, 'Import: 4 angelegt, 1 übersprungen ' + JSON.stringify(ir));
+ok(M.docs.get('u/sophie/mails|m-abcx').data.priority === 'hoch' && M.docs.get('u/sophie/events|ev-e1').data.time === '09:30' && M.docs.get('u/sophie/invoices|inv-r1').data.amount === 45.9, 'Import landet in Sophies Bereich');
+ok(![...M.docs.keys()].some(k => k.startsWith('mails|m-abc') || k.startsWith('events|ev-e1')), 'Nichts in Jans Bereich');
+M.docs.get('u/sophie/reminders|i-t1').data.status = 'erledigt';
+ir = await (await imp({ items: [{ art: 'todo', id: 't1', titel: 'Steuer-ID schicken!', faellig: T }, { art: 'termin', id: 'e1', abgesagt: true }] })).json();
+ok(ir.aktualisiert === 1 && ir.geloescht === 1 && M.docs.get('u/sophie/reminders|i-t1').data.status === 'erledigt' && !M.docs.has('u/sophie/events|ev-e1'), 'Wiederholter Import: Status bleibt, Absage löscht');
+const st2 = await (await call('a=import&t=' + tSo)).json(); ok(st2.lastRun && M.docs.get('u/sophie/meta|sync').data.sources === 'Gmail ✓', 'Import: Stand abrufbar');
+ok((await imp({ items: [] }, tGast)).status === 403, 'Nur-Haushalt-Zugang: kein Import');
 
 // Push
 const sent: any[] = []; const sender = async (sub: any, payload: string) => { sent.push({ sub, msg: JSON.parse(payload) }); return sub.gone ? 410 : 201; };
