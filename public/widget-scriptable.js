@@ -1,7 +1,7 @@
-// Life OS · Widget für die App „Scriptable“ (iPhone/iPad)
+// HOME · Widget für die App „Scriptable“ (iPhone/iPad)
 // Einrichtung: Skript in Scriptable einfügen → Widget „Scriptable“ auf den Home-Bildschirm →
-// Widget bearbeiten → Script: dieses Skript, Parameter: die Widget-Adresse aus Life OS (Einstellungen → Handy & Sicherheit).
-// Optional nach einem Leerzeichen die Adresse der App, damit ein Tipp aufs Widget Life OS öffnet.
+// Widget bearbeiten → Script: dieses Skript, Parameter: die Widget-Adresse aus HOME (Einstellungen → Handy & Sicherheit).
+// Optional nach einem Leerzeichen die Adresse der App, damit ein Tipp aufs Widget HOME öffnet.
 const [URL_, APP] = (args.widgetParameter || '').trim().split(/\s+/);
 const fam = config.widgetFamily || 'medium';
 const w = new ListWidget();
@@ -11,7 +11,7 @@ w.backgroundColor = C.bg; w.setPadding(14, 14, 14, 14); if (APP) w.url = APP;
 const head = (t) => { const x = w.addText(t); x.font = Font.semiboldSystemFont(13); x.textColor = C.mut; };
 const line = (t, color, size = 14) => { const x = w.addText(t); x.font = Font.systemFont(size); x.textColor = color || C.fg; x.lineLimit = 1; };
 if (!URL_) {
-  head('Life OS'); w.addSpacer(6); line('Widget-Adresse als Parameter eintragen', C.mut, 12);
+  head('HOME'); w.addSpacer(6); line('Widget-Adresse als Parameter eintragen', C.mut, 12);
 } else {
   try {
     const d = await new Request(URL_).loadJSON();
@@ -29,7 +29,7 @@ if (!URL_) {
     if (d.gewohnheiten && d.gewohnheiten.von) foot.push(`Gewohnheiten ${d.gewohnheiten.erledigt}/${d.gewohnheiten.von}`);
     if (d.einkauf) foot.push(`Einkauf ${d.einkauf}`);
     const f = w.addText(foot.join(' · ')); f.font = Font.systemFont(11); f.textColor = C.mut;
-  } catch (e) { head('Life OS'); w.addSpacer(6); line('Nicht erreichbar – später erneut', C.mut, 12); }
+  } catch (e) { head('HOME'); w.addSpacer(6); line('Nicht erreichbar – später erneut', C.mut, 12); }
 }
 w.refreshAfterDate = new Date(Date.now() + 15 * 60 * 1000);
 Script.setWidget(w); if (config.runsInApp) await (fam === 'small' ? w.presentSmall() : w.presentMedium());

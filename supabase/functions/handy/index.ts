@@ -277,7 +277,7 @@ async function handle(req: Request, st: Store): Promise<Response> {
       C('people').filter(pp => pp.birthday && /^\d{4}-\d{2}-\d{2}$/.test(pp.birthday)).forEach(pp => add('bday-' + pp.id, `🎂 ${pp.name}`, pp.birthday, { repeat: 'jährlich' }));
       C('trips').filter(t => t.from).forEach(t => add('trip-' + t.id, `✈︎ ${t.title}`, t.from, { to: t.to || t.from }));
     }
-    const ics = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Life OS//DE', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', `X-WR-CALNAME:${full ? 'Life OS' : 'Haushalt'}`, 'X-WR-TIMEZONE:Europe/Berlin', 'REFRESH-INTERVAL;VALUE=DURATION:PT1H',
+    const ics = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//HOME//DE', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', `X-WR-CALNAME:${full ? 'HOME' : 'HOME · Haushalt'}`, 'X-WR-TIMEZONE:Europe/Berlin', 'REFRESH-INTERVAL;VALUE=DURATION:PT1H',
       'BEGIN:VTIMEZONE', 'TZID:Europe/Berlin', 'BEGIN:DAYLIGHT', 'TZOFFSETFROM:+0100', 'TZOFFSETTO:+0200', 'TZNAME:CEST', 'DTSTART:19700329T020000', 'RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=-1SU', 'END:DAYLIGHT',
       'BEGIN:STANDARD', 'TZOFFSETFROM:+0200', 'TZOFFSETTO:+0100', 'TZNAME:CET', 'DTSTART:19701025T030000', 'RRULE:FREQ=YEARLY;BYMONTH=10;BYDAY=-1SU', 'END:STANDARD', 'END:VTIMEZONE', ...ve, 'END:VCALENDAR'];
     const fold = (l: string) => { const out: string[] = []; let s = l; while (s.length > 72) { out.push(s.slice(0, 72)); s = ' ' + s.slice(72); } out.push(s); return out.join('\r\n'); };

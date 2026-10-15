@@ -1,5 +1,5 @@
 // Life OS · Service Worker: App-Hülle und Bibliotheken offline verfügbar; Daten-Zwischenspeicher und Warteschlange liegen in shim.js
-const CACHE = 'lifeos-v3';
+const CACHE = 'lifeos-v4';
 const LIBS = ['cdn.jsdelivr.net', 'cdnjs.cloudflare.com']; // feste Versionen der Bibliotheken – dürfen offline aus dem Cache kommen
 const SHELL = ['/', '/index.html', '/shim.js', '/config.js', '/manifest.webmanifest', '/icons/icon-192.png', '/handy.html'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
@@ -14,8 +14,8 @@ self.addEventListener('fetch', e => {
 
 // Push-Mitteilungen
 self.addEventListener('push', e => {
-  let m = {}; try { m = e.data ? e.data.json() : {}; } catch (_) { m = { title: 'Life OS', body: e.data ? e.data.text() : '' }; }
-  const jobs = [self.registration.showNotification(m.title || 'Life OS', { body: m.body || '', icon: '/icons/icon-192.png', badge: '/icons/icon-192.png', tag: 'lifeos-' + (m.url || ''), data: { url: m.url || '/' } })];
+  let m = {}; try { m = e.data ? e.data.json() : {}; } catch (_) { m = { title: 'HOME', body: e.data ? e.data.text() : '' }; }
+  const jobs = [self.registration.showNotification(m.title || 'HOME', { body: m.body || '', icon: '/icons/icon-192.png', badge: '/icons/icon-192.png', tag: 'lifeos-' + (m.url || ''), data: { url: m.url || '/' } })];
   if (typeof m.badge === 'number' && self.navigator && self.navigator.setAppBadge) jobs.push((m.badge ? self.navigator.setAppBadge(m.badge) : self.navigator.clearAppBadge()).catch(() => {}));
   e.waitUntil(Promise.all(jobs));
 });

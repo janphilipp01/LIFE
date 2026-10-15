@@ -157,7 +157,7 @@ async function handle(req: Request, st: Store, send: Sender = webSender, now = n
   if (slotQ === 'test') {
     const uid = await st.userFromJwt((req.headers.get('authorization') || '').replace(/^Bearer\s+/i, ''));
     if (!uid) return json({ error: 'nicht angemeldet' }, 401);
-    const n = await deliver([uid], () => ({ title: 'Life OS', body: 'Mitteilungen sind eingeschaltet. So sieht es um 7 und 18 Uhr aus.', badge: 0, url: '/' }));
+    const n = await deliver([uid], () => ({ title: 'HOME', body: 'Mitteilungen sind eingeschaltet. So sieht es um 7 und 18 Uhr aus.', badge: 0, url: '/' }));
     return json({ sent: n });
   }
   if (req.headers.get('x-cron') !== (await st.secret('cron'))) return json({ error: 'nicht erlaubt' }, 401);

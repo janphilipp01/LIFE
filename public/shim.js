@@ -180,7 +180,7 @@
   function showMfa(session) {
     hideLogin();
     const el = document.createElement('div'); el.id = LOGIN_ID; el.className = 'login';
-    el.innerHTML = `<form class="login-card"><div class="brand"><i></i><span>Life OS</span></div><h1>Bestätigungscode</h1>
+    el.innerHTML = `<form class="login-card"><div class="brand"><i></i><span>HOME</span></div><h1>Bestätigungscode</h1>
       <p class="login-msg">Gib den 6-stelligen Code aus deiner Authenticator-App ein.</p>
       <div class="field"><label for="loCode">Code</label><input id="loCode" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required></div>
       <button class="btn pri" type="submit" id="loGo">Bestätigen</button><button class="btn ghost sm" type="button" id="loOut">Abmelden</button></form>`;
@@ -235,8 +235,8 @@
       </section>
       <section class="panel"><div class="panel-h"><h2>Mitteilungen</h2></div>
         ${ps === 'on' ? `<p class="sync">Eingeschaltet auf diesem Gerät: morgens um 7 Uhr ${owner ? 'To-Dos, Termine, Fristen, Rechnungen, Geburtstage und Haushalt' : 'Haushalt und gemeinsame Termine'}, abends um 18 Uhr, was im Haushalt noch offen ist. Die Zahl am App-Symbol zeigt ${owner ? 'fällige To-Dos' : 'offene Haushaltsaufgaben'}.</p><div class="tools"><button class="btn sm" data-mb="pushtest">Probe senden</button><button class="btn sm" data-mb="pushoff">Ausschalten</button></div>`
-        : ps === 'install' ? `<p class="sync">Auf dem iPhone gehen Mitteilungen nur, wenn Life OS als App installiert ist: In Safari auf „Teilen“ → „Zum Home-Bildschirm“, dann die App von dort öffnen und hier einschalten.</p>`
-        : ps === 'denied' ? `<p class="sync">Mitteilungen sind für Life OS blockiert. Erlaube sie in den Einstellungen des Geräts (Mitteilungen → Life OS) und lade die App neu.</p>`
+        : ps === 'install' ? `<p class="sync">Auf dem iPhone gehen Mitteilungen nur, wenn HOME als App installiert ist: In Safari auf „Teilen“ → „Zum Home-Bildschirm“, dann die App von dort öffnen und hier einschalten.</p>`
+        : ps === 'denied' ? `<p class="sync">Mitteilungen sind für HOME blockiert. Erlaube sie in den Einstellungen des Geräts (Mitteilungen → HOME) und lade die App neu.</p>`
         : ps === 'nosupport' ? `<p class="sync">Dieses Gerät oder dieser Browser unterstützt keine Mitteilungen.</p>`
         : `<p class="sync">Morgens um 7 Uhr eine Übersicht, abends um 18 Uhr offene Haushaltsaufgaben.</p><div class="tools"><button class="btn sm pri" data-mb="pushon">Auf diesem Gerät einschalten</button></div>`}
       </section>
@@ -258,7 +258,7 @@
           if (act === 'copy') { await navigator.clipboard.writeText(b.dataset.v); say('Kopiert'); return; }
           if (act === 'freshok') { fresh = null; return mobile.mount(el); }
           if (act === 'mfaon') {
-            const { data, error } = await sb.auth.mfa.enroll({ factorType: 'totp', friendlyName: 'Life OS ' + new Date().toISOString().slice(0, 10) });
+            const { data, error } = await sb.auth.mfa.enroll({ factorType: 'totp', friendlyName: 'HOME ' + new Date().toISOString().slice(0, 10) });
             if (error) throw error;
             const box = el.querySelector('#mbMfa');
             box.innerHTML = `<div class="card"><p class="sync">1. QR-Code mit der Authenticator-App scannen (auf dem iPhone: Code lange drücken oder den Schlüssel unten in der Passwörter-App eintragen).</p><img alt="QR-Code für die Authenticator-App" src="${escH(data.totp.qr_code)}" style="width:180px;height:180px;background:#fff;border-radius:12px;padding:8px"><p class="sync" style="word-break:break-all">Schlüssel: <b>${escH(data.totp.secret)}</b></p><p class="sync">2. Den angezeigten 6-stelligen Code eingeben:</p><form class="tools" id="mbCode"><input class="inp" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="123456" aria-label="Code"><button class="btn sm pri" type="submit">Aktivieren</button></form></div>`;
@@ -301,8 +301,8 @@
           }
           if (act === 'backup') {
             const { data, error } = await sb.from('docs').select('coll,id,data,updated_at').limit(50000); if (error) throw error;
-            const blob = new Blob([JSON.stringify({ app: 'Life OS', exportedAt: new Date().toISOString(), docs: data }, null, 1)], { type: 'application/json' });
-            const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `LifeOS-Sicherung-${new Date().toISOString().slice(0, 10)}.json`; document.body.appendChild(a); a.click(); a.remove();
+            const blob = new Blob([JSON.stringify({ app: 'HOME', exportedAt: new Date().toISOString(), docs: data }, null, 1)], { type: 'application/json' });
+            const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `HOME-Sicherung-${new Date().toISOString().slice(0, 10)}.json`; document.body.appendChild(a); a.click(); a.remove();
             setTimeout(() => URL.revokeObjectURL(a.href), 4000); return;
           }
         } catch (e) { say('Das hat nicht geklappt: ' + (e.message || e)); }
@@ -322,7 +322,7 @@
     hideLogin();
     const el = document.createElement('div'); el.id = LOGIN_ID; el.className = 'login';
     el.innerHTML = `<form class="login-card" novalidate>
-      <div class="brand"><i></i><span>Life OS</span></div>
+      <div class="brand"><i></i><span>HOME</span></div>
       <h1>Anmelden</h1>
       ${msg ? `<p class="login-msg">${msg.replace(/</g, '&lt;')}</p>` : ''}
       ${fatal ? '' : loggedIn ? `<button type="button" class="btn" id="loOut">Abmelden</button>` : `
@@ -349,7 +349,7 @@
   function showNewPassword() {
     hideLogin();
     const el = document.createElement('div'); el.id = LOGIN_ID; el.className = 'login';
-    el.innerHTML = `<form class="login-card"><div class="brand"><i></i><span>Life OS</span></div><h1>Neues Passwort</h1><div class="field"><label for="loNew">Neues Passwort (mind. 10 Zeichen)</label><input id="loNew" type="password" autocomplete="new-password" minlength="10" required></div><p class="login-msg" hidden></p><button class="btn pri" type="submit">Speichern</button></form>`;
+    el.innerHTML = `<form class="login-card"><div class="brand"><i></i><span>HOME</span></div><h1>Neues Passwort</h1><div class="field"><label for="loNew">Neues Passwort (mind. 10 Zeichen)</label><input id="loNew" type="password" autocomplete="new-password" minlength="10" required></div><p class="login-msg" hidden></p><button class="btn pri" type="submit">Speichern</button></form>`;
     document.body.appendChild(el);
     el.querySelector('form').addEventListener('submit', async e => { e.preventDefault(); const pw = el.querySelector('#loNew').value; const msg = el.querySelector('.login-msg'); if (pw.length < 10) { msg.hidden = false; msg.textContent = 'Mindestens 10 Zeichen.'; return; } const { error } = await sb.auth.updateUser({ password: pw }); if (error) { msg.hidden = false; msg.textContent = error.message; return; } const { data } = await sb.auth.getSession(); afterLogin(data.session); });
   }
