@@ -8,12 +8,14 @@ html=html.replace('<script src="/config.js"></script>','<script>window.LIFEOS_CO
   .replace(/<script src="https:\/\/cdn[^"]+"><\/script>/,'')
   .replace('<script src="/shim.js"></script>','<script>window.__mkSB()</script><script>'+shim+'</script>');
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
-function mkSB(users,members,rows){
+function mkSB(users,members,rows,mfaUsers={}){
   // rows: Map key coll|id -> {coll,id,data}
-  let session=null;const authCbs=[];const rt=[];
+  let session=null;let aal='aal1';const tokens=[];const authCbs=[];const rt=[];
   const canAccess=c=>{const m=session&&members[session.user.id];if(!m)return false;return m.role==='owner'||(m.role==='partner'&&(c==='hh'||c.startsWith('hh/')))};
   const emit=(row,old)=>rt.forEach(f=>f({new:row,old}));
   function table(name){
+    if(name==='device_tokens'){const b={select(){return b},order(){return b},eq(k,v){b._id=v;return b},delete(){b._del=true;return b},then(res){if(b._del){const i=tokens.findIndex(t=>t.id===b._id);if(i>=0)tokens.splice(i,1)}return Promise.resolve({data:tokens.filter(t=>t.user_id===session.user.id),error:null}).then(res)}};return b}
+    if(name==='push_subs'){const b={upsert(){return Promise.resolve({error:null})},delete(){return b},eq(){return Promise.resolve({error:null})}};return b}
     const st={f:[],ord:null,lim:null,single:false};
     const run=()=>{
       if(name==='members'){const uid=st.f.find(x=>x[0]==='user_id');const m=uid&&session&&uid[1]===session.user.id?members[uid[1]]:null;return {data:m?{role:m.role,name:m.name}:null,error:null}}
@@ -33,9 +35,11 @@ function mkSB(users,members,rows){
   return {
     auth:{getSession:async()=>({data:{session}}),onAuthStateChange:cb=>authCbs.push(cb),
       signInWithPassword:async({email,password})=>{const u=users[email];if(!u||u.pw!==password)return {data:{},error:{message:'Invalid login'}};session={user:{id:u.id,email}};return {data:{session},error:null}},
-      signOut:async()=>{session=null},resetPasswordForEmail:async()=>({error:null}),updateUser:async()=>({error:null})},
+      signOut:async()=>{session=null},refreshSession:async()=>({}),
+      mfa:{getAuthenticatorAssuranceLevel:async()=>({data:{currentLevel:aal,nextLevel:mfaUsers[session.user.id]?'aal2':'aal1'}}),listFactors:async()=>({data:{totp:mfaUsers[session.user.id]?[{id:'f1',status:'verified',created_at:'2026-10-01T10:00:00Z'}]:[]}}),
+        challengeAndVerify:async({code})=>code==='123456'?(aal='aal2',mfaUsers[session.user.id]=true,{error:null}):{error:{message:'Invalid TOTP code'}},enroll:async()=>({data:{id:'f2',totp:{qr_code:'data:image/svg+xml;base64,PHN2Zy8+',secret:'JBSWY3DPEHPK3PXP'}}}),unenroll:async()=>{delete mfaUsers[session.user.id];aal='aal1';return {error:null}}},resetPasswordForEmail:async()=>({error:null}),updateUser:async()=>({error:null})},
     from:table,
-    rpc:async(fn,{p_coll,p_id,p_patch})=>{const r=rows.get(p_coll+'|'+p_id);if(!r||!canAccess(p_coll))return {error:{message:'nicht gefunden'}};Object.assign(r.data,p_patch);setTimeout(()=>emit(r),5);return {error:null}},
+    rpc:async(fn,args)=>{if(fn==='create_device_token'){const t='f'.repeat(48);tokens.push({id:'t'+tokens.length,user_id:session.user.id,label:args.p_label||'Handy',scope:args.p_scope,created_at:new Date().toISOString(),last_used:null});return {data:t,error:null}}if(fn==='setup_push')return {data:null,error:null};const {p_coll,p_id,p_patch}=args;const r=rows.get(p_coll+'|'+p_id);if(!r||!canAccess(p_coll))return {error:{message:'nicht gefunden'}};Object.assign(r.data,p_patch);setTimeout(()=>emit(r),5);return {error:null}},
     channel:()=>({on(_,__,f){rt.push(f);return this},subscribe(){return this}}),
     storage:{from:()=>({upload:async(id,f)=>{if(members[session.user.id].role!=='owner')return {error:{message:'denied'}};uploads[id]=f;return {error:null}},createSignedUrl:async id=>({data:{signedUrl:'https://signed/'+id}})})},
     _rows:rows,_uploads:uploads
@@ -99,5 +103,33 @@ async function boot(email,pw,shared){
   ok(doc.getElementById('lo-login')&&doc.getElementById('lo-login').textContent.includes('nicht freigeschaltet'),'Fremder Zugang gesperrt');
   ({w,doc,errors,L}=await boot('jan@x.de','falsch',{sb:mkSB(users,members,rows)}));
   ok(doc.querySelector('.login-msg')&&doc.querySelector('.login-msg').textContent.includes('fehlgeschlagen'),'Falsches Passwort');
+  // Zwei-Faktor beim Anmelden + Handy-Bereich
+  const mfa={u1:true};const sbM=mkSB(users,members,rows,mfa);
+  ({w,doc,errors,L}=await boot('jan@x.de','geheim123456',{sb:sbM}));
+  ok(doc.getElementById('loCode')&&L.S.accounts.length===0,'2FA: Code wird abgefragt, App noch gesperrt');
+  doc.getElementById('loCode').value='000000';doc.querySelector('#lo-login form').dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));await wait(80);
+  ok(doc.querySelector('.login-msg').textContent.includes('stimmt nicht'),'2FA: falscher Code abgewiesen');
+  doc.getElementById('loCode').value='123456';doc.querySelector('#lo-login form').dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));await wait(400);L=w.__lifeos;
+  ok(!doc.getElementById('lo-login')&&L&&L.S.accounts.length===1,'2FA: richtiger Code öffnet die App');
+  L.ui.sec='einstellungen';L.ui.tab.set='handy';L.render();await wait(80);
+  const mb=()=>doc.getElementById('mobileBox');
+  ok(mb()&&mb().textContent.includes('Aktiv seit')&&mb().textContent.includes('Handy-Zugänge')&&mb().textContent.includes('Sicherung'),'Einstellungen: Handy & Sicherheit');
+  ok(mb().textContent.includes('Zum Home-Bildschirm')||mb().textContent.includes('unterstützt keine'),'Mitteilungen: Hinweis zur Installation');
+  const nf=doc.getElementById('mbNew');nf.elements.label.value='iPhone';nf.dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));await wait(80);
+  ok(mb().textContent.includes('nur jetzt sichtbar')&&mb().textContent.includes('https://x.supabase.co/functions/v1/handy?a=erfassen&t='+'f'.repeat(48))&&mb().textContent.includes('a=datei'),'Schlüssel erzeugt, Adressen angezeigt');
+  L.render();await wait(30);ok(mb().textContent.includes('nur jetzt sichtbar'),'Bereich bleibt beim Neuzeichnen erhalten');
+  doc.querySelector('[data-mb="freshok"]').click();await wait(80);ok(mb().textContent.includes('iPhone')&&!mb().textContent.includes('nur jetzt sichtbar'),'Schlüssel danach nur noch in der Liste');
+  nf.scope&&0;const nf2=doc.getElementById('mbNew');nf2.elements.scope.value='kalender';nf2.dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));await wait(80);
+  ok(mb().querySelector('a[href^="webcal://x.supabase.co/functions/v1/handy?a=kalender&t="]'),'Kalender-Abo-Link (webcal)');
+  ok(errors.length===0,'Keine Fehler 2FA/Handy '+JSON.stringify(errors));
+  // Ohne 2FA: Einrichten zeigt QR-Code
+  ({w,doc,errors,L}=await boot('jan@x.de','geheim123456',{sb:mkSB(users,members,rows,{})}));
+  L.ui.sec='einstellungen';L.ui.tab.set='handy';L.render();await wait(80);doc.querySelector('[data-mb="mfaon"]').click();await wait(60);
+  ok(doc.querySelector('#mbMfa img[alt^="QR-Code"]')&&doc.getElementById('mbMfa').textContent.includes('JBSWY3DPEHPK3PXP'),'2FA einrichten: QR-Code + Schlüssel');
+  const cf=doc.getElementById('mbCode');cf.elements.code.value='123456';cf.dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));await wait(100);ok(doc.getElementById('mobileBox').textContent.includes('Aktiv seit'),'2FA aktiviert');
+  // Sophie: Handy-Tab im Haushalt
+  ({w,doc,errors,L}=await boot('sophie@x.de','sophie123456',{sb:mkSB(users,members,rows)}));
+  ok(doc.querySelector('[data-tab="handy"]')||[...doc.querySelectorAll('.seg button,.tabs button,[role=tab]')].some(b=>b.textContent==='Handy'),'Sophie: Handy-Tab im Haushalt');
+  L.ui.tab.hh='handy';L.render();await wait(80);ok(doc.getElementById('mobileBox').textContent.includes('Handy-Zugänge')&&!doc.getElementById('mobileBox').textContent.includes('Sicherung herunterladen'),'Sophie: Zugänge ohne Sicherung');
   process.exit();
 })();

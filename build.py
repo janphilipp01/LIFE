@@ -34,6 +34,12 @@ html,body{margin:0}
 .login-card .btn{justify-content:center}
 .offpill{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 84px);z-index:90;padding:8px 14px;border-radius:999px;font-size:13px;line-height:18px;color:#fff;background:linear-gradient(180deg,#3a3a3c,#1c1c1e);box-shadow:0 6px 20px rgba(0,0,0,.18);pointer-events:none}
 @media (min-width:1024px){.offpill{bottom:20px}}
+#mobileBox{display:flex;flex-direction:column;gap:28px;min-width:0}
+#mobileBox .row{grid-template-columns:minmax(0,1fr) auto;cursor:default}
+#mobileBox .card{cursor:default}
+#mobileBox .card .list{box-shadow:none;background:transparent}
+#mobileBox .card .row{padding:12px 0}
+#mobileBox .sync{margin:0}
 </style>
 <script src="/config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
@@ -46,3 +52,15 @@ pub = R/'public'; pub.mkdir(exist_ok=True)
 (pub/'index.html').write_text(out)
 shutil.copy(R/'src/shim.js', pub/'shim.js')
 print('public/index.html', len(out)//1024, 'KB')
+
+# Server-Funktionen: gemeinsame Bausteine + Funktion zu je einer eigenständigen Datei zusammensetzen
+lib = (R/'src/fn/lib.ts').read_text()
+for name in ['handy', 'push']:
+    body = (R/f'src/fn/{name}.ts').read_text()
+    src = lib + '\n' + body
+    imports = [l for l in src.splitlines() if l.startswith('import ')]
+    rest = [l for l in src.splitlines() if not l.startswith('import ')]
+    out = R/f'supabase/functions/{name}/index.ts'
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text('// Automatisch erzeugt aus src/fn/ – bitte dort ändern (python3 build.py)\n' + '\n'.join(imports + [''] + rest) + '\nexport { handle };\n')
+    print(out.relative_to(R), round(out.stat().st_size/1024), 'KB')

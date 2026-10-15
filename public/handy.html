@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Handy einrichten · Life OS</title>
+<meta name="robots" content="noindex,nofollow">
+<link rel="icon" href="/icons/icon-192.png">
+<style>
+:root{--bg:#F2F2F7;--card:rgba(255,255,255,.72);--edge:rgba(255,255,255,.8);--fg:#1c1c1e;--mut:#6e6e73;--acc:#007aff;--line:rgba(60,60,67,.12)}
+@media (prefers-color-scheme:dark){:root{--bg:#000;--card:rgba(44,44,46,.72);--edge:rgba(255,255,255,.08);--fg:#f2f2f7;--mut:#98989d;--acc:#0a84ff;--line:rgba(84,84,88,.4)}}
+*{box-sizing:border-box;letter-spacing:0}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/22px "SF Pro Text",-apple-system,BlinkMacSystemFont,system-ui,sans-serif;background-image:radial-gradient(60vw 60vw at 85% -10%,rgba(0,122,255,.10),transparent 60%)}
+h1,h2,h3{font-family:"SF Pro Display",-apple-system,BlinkMacSystemFont,system-ui,sans-serif;margin:0}
+h1{font-size:34px;line-height:41px;font-weight:700}h2{font-size:22px;line-height:28px;font-weight:600;margin:0 0 8px}h3{font-size:17px;line-height:22px;font-weight:600;margin:16px 0 6px}
+main{max-width:760px;margin:0 auto;padding:32px 16px 64px;display:flex;flex-direction:column;gap:16px}
+.lead{color:var(--mut);margin:6px 0 8px}
+section{background:var(--card);-webkit-backdrop-filter:blur(30px);backdrop-filter:blur(30px);border:.5px solid var(--edge);border-radius:22px;padding:20px;box-shadow:0 8px 30px rgba(31,38,64,.06)}
+ol,ul{margin:6px 0;padding-left:22px}li{margin:4px 0}
+code,.k{font:13px/18px ui-monospace,SFMono-Regular,Menlo,monospace;background:rgba(118,118,128,.12);border-radius:6px;padding:1px 6px;word-break:break-all}
+.note{color:var(--mut);font-size:13px;line-height:18px}
+.pill{display:inline-block;font-size:12px;line-height:16px;padding:2px 8px;border-radius:999px;background:rgba(118,118,128,.14);color:var(--mut);margin-left:6px;vertical-align:2px}
+a{color:var(--acc)}
+nav{display:flex;flex-wrap:wrap;gap:8px}nav a{text-decoration:none;font-size:13px;padding:6px 12px;border-radius:999px;background:var(--card);border:.5px solid var(--edge);color:var(--fg)}
+</style>
+</head>
+<body><main>
+<div><h1>Handy einrichten</h1><p class="lead">So arbeitet Life OS mit deinem iPhone zusammen. Alles ist optional. Die Adressen mit deinem Schlüssel erzeugst du in Life OS unter Einstellungen → Handy &amp; Sicherheit → „Schlüssel erzeugen“. Sophie findet denselben Bereich im Haushalt unter „Handy“.</p>
+<nav><a href="#app">App &amp; Mitteilungen</a><a href="#siri">Siri</a><a href="#teilen">Teilen-Menü</a><a href="#health">Health</a><a href="#nfc">NFC</a><a href="#orte">Orte</a><a href="#widget">Widget</a><a href="#kalender">Kalender</a></nav></div>
+
+<section id="app"><h2>1 · App, Zwei-Faktor und Mitteilungen</h2>
+<ol>
+<li>Life OS in <b>Safari</b> öffnen → Teilen-Symbol → <b>Zum Home-Bildschirm</b>. Ab jetzt die App über das Symbol starten.</li>
+<li>Einstellungen → Handy &amp; Sicherheit → <b>Zwei-Faktor-Anmeldung einrichten</b>. QR-Code mit der Passwörter-App (oder einer anderen Authenticator-App) scannen, Code eingeben.</li>
+<li><b>Mitteilungen → Auf diesem Gerät einschalten</b> und „Erlauben“ tippen. Mit „Probe senden“ testen.</li>
+</ol>
+<p class="note">Mitteilungen kommen um 7 Uhr (Übersicht) und um 18 Uhr (Haushalt, nur wenn etwas offen ist). Die Zahl am App-Symbol zeigt fällige To-Dos bzw. bei Sophie offene Haushaltsaufgaben.</p>
+</section>
+
+<section id="siri"><h2>2 · Siri: „Hey Siri, Life OS“</h2>
+<p>In der App <b>Kurzbefehle</b> einen neuen Kurzbefehl mit dem Namen <b>Life OS</b> anlegen:</p>
+<ol>
+<li>Aktion <b>Text diktieren</b>.</li>
+<li>Aktion <b>Inhalte von URL abrufen</b>. URL: die Adresse „Siri: To-Do erfassen“. Pfeil öffnen: Methode <b>POST</b>, Anfragetext <b>JSON</b>, Feld <code>text</code> = <i>Diktierter Text</i>.</li>
+<li>Aktion <b>Text sprechen</b> mit <i>Inhalt der URL</i>, damit Siri bestätigt.</li>
+</ol>
+<p>Sprich ganz normal: „Steuerberater anrufen morgen 10 Uhr, wichtig“. Datum, Uhrzeit, <code>!!</code>, <code>#Liste</code> und „jeden Montag“ werden wie in der Schnellerfassung erkannt.</p>
+<h3>Weitere Sprachbefehle</h3>
+<ul>
+<li><b>Einkauf</b>: gleicher Aufbau, Adresse „Siri: Einkauf“. „Milch, Eier und Butter“ landen als drei Artikel auf der Liste. <span class="pill">auch für Sophie</span></li>
+<li><b>Journal</b>: Adresse wie To-Do, zusätzlich JSON-Feld <code>art</code> = <code>journal</code>. Ergänzt den heutigen Eintrag.</li>
+<li><b>Haushaltsaufgabe</b>: <code>art</code> = <code>aufgabe</code> legt eine einmalige Aufgabe für heute an.</li>
+</ul>
+</section>
+
+<section id="teilen"><h2>3 · Teilen-Menü</h2>
+<h3>Dateien, Fotos, PDFs → Dokumente</h3>
+<ol>
+<li>Neuer Kurzbefehl „In Life OS ablegen“. Unter (i) <b>Im Share-Sheet anzeigen</b> aktivieren, Typen: Bilder, PDFs, Dateien.</li>
+<li>Aktion <b>Inhalte von URL abrufen</b>: Adresse „Teilen-Menü: Datei“, Methode <b>POST</b>, Anfragetext <b>Formular</b>, Feld <code>datei</code> vom Typ <b>Datei</b> = <i>Kurzbefehl-Eingabe</i>.</li>
+<li>Aktion <b>Mitteilung anzeigen</b> mit <i>Inhalt der URL</i>.</li>
+</ol>
+<p class="note">Die Datei liegt danach unter Verwaltung → Dokumente. Mit „Texte erkennen“ wird sie durchsuchbar.</p>
+<h3>Links und Mails → To-Do</h3>
+<ol>
+<li>Neuer Kurzbefehl „Als To-Do merken“, im Share-Sheet für URLs, Safari-Webseiten und Text.</li>
+<li><b>Inhalte von URL abrufen</b>: Adresse „Siri: To-Do erfassen“, POST, JSON: <code>text</code> = <i>Kurzbefehl-Eingabe</i> (Name), <code>url</code> = <i>Kurzbefehl-Eingabe</i>.</li>
+</ol>
+</section>
+
+<section id="health"><h2>4 · Apple Health</h2>
+<ol>
+<li>Kurzbefehle → <b>Automation</b> → Neue Automation → <b>Tageszeit</b> 21:30, täglich, <b>Sofort ausführen</b>.</li>
+<li><b>Health-Samples suchen</b>: Typ Schritte, Startdatum heute → <b>Statistik berechnen</b>: Summe.</li>
+<li>Optional ebenso: Aktivkalorien (Summe), Gewicht (sortiert nach Startdatum, neuester, Limit 1), Trainings heute (Anzahl).</li>
+<li><b>Inhalte von URL abrufen</b>: Adresse „Apple Health“, POST, JSON mit <code>schritte</code>, <code>kalorien</code>, <code>gewicht</code>, <code>trainings</code>.</li>
+</ol>
+<p class="note">In Life OS bei einer Gewohnheit „Automatisch abhaken (Apple Health)“ wählen, z. B. Schritte ab 10.000. Das Gewicht erscheint im Training unter Körperwerte. Es werden nur die Werte übertragen, die du in den Kurzbefehl einbaust.</p>
+</section>
+
+<section id="nfc"><h2>5 · NFC-Sticker für den Haushalt</h2>
+<ol>
+<li>Günstige NFC-Sticker (NTAG215) an Waschmaschine, Mülleimer, Spülmaschine kleben.</li>
+<li>Automation → <b>NFC</b> → Sticker scannen und benennen → Sofort ausführen.</li>
+<li><b>Inhalte von URL abrufen</b>: Adresse „NFC: Aufgabe erledigt“, am Ende <code>aufgabe=Wäsche</code> passend zum Namen der Aufgabe in Life OS.</li>
+<li><b>Mitteilung anzeigen</b> mit <i>Inhalt der URL</i>, z. B. „Wäsche erledigt · 2 Punkte. Nächstes Mal am 22.10., dann ist Sophie dran.“</li>
+</ol>
+<p class="note">Funktioniert mit Jans und mit Sophies Schlüssel. Die Punkte landen bei der Person, deren Handy den Sticker liest.</p>
+</section>
+
+<section id="orte"><h2>6 · Orte und Zeiten</h2>
+<ul>
+<li><b>Supermarkt</b>: Automation „Ankommen“ bei REWE/Edeka → Inhalte von URL abrufen (Adresse „Einkaufsliste vorlesen“) → <b>Schnellansicht</b>. Die Liste erscheint, sobald du ankommst.</li>
+<li><b>Gym</b>: Automation „Ankommen“ → <b>URL öffnen</b>: <code>https://DEINE-APP/#training</code> öffnet die heutige Einheit.</li>
+<li><b>Abends</b>: Automation 21:30 → URL öffnen <code>https://DEINE-APP/#journal</code>.</li>
+</ul>
+<p class="note">Jeder Bereich hat eine eigene Adresse: <code>#heute</code>, <code>#todo</code>, <code>#kalender</code>, <code>#finanzen</code>, <code>#haushalt</code>, <code>#training</code>, <code>#journal</code> …</p>
+</section>
+
+<section id="widget"><h2>7 · Widget auf dem Home-Bildschirm</h2>
+<ol>
+<li>Kostenlose App <b>Scriptable</b> installieren.</li>
+<li>In Life OS „Widget-Skript (Scriptable)“ laden, Inhalt in ein neues Scriptable-Skript „Life OS“ kopieren.</li>
+<li>Home-Bildschirm lange drücken → Widget „Scriptable“ (mittel) hinzufügen → Widget bearbeiten: Script „Life OS“, Parameter: die Adresse „Widget (JSON)“, optional mit Leerzeichen dahinter die App-Adresse.</li>
+</ol>
+<p class="note">Zeigt Termine, fällige To-Dos, Haushaltsaufgaben, Gewohnheiten und die Anzahl auf der Einkaufsliste. Aktualisiert etwa alle 15 Minuten.</p>
+</section>
+
+<section id="kalender"><h2>8 · Kalender-Abo</h2>
+<ol>
+<li>Einstellungen → Handy &amp; Sicherheit → Art <b>Kalender-Abo</b> → Schlüssel erzeugen.</li>
+<li><b>Im iPhone-Kalender abonnieren</b> tippen und bestätigen.</li>
+</ol>
+<p class="note">Enthält Life-OS-Termine, Fristen (3 Tage vorher Erinnerung), offene Zahlungen, Geburtstage, Reisen und gemeinsame Haushaltstermine. Outlook- und iCloud-Termine fehlen bewusst, weil sie schon im Kalender stehen. Sophies Abo enthält nur den Haushalt. Der Kalender-Schlüssel kann nur lesen. Wird er nicht mehr gebraucht, in Life OS löschen.</p>
+</section>
+
+<section><h2>Sicherheit</h2>
+<ul>
+<li>Schlüssel werden nur verschlüsselt (als Hash) gespeichert und sind nur direkt nach dem Erzeugen sichtbar.</li>
+<li>Ein verlorenes Handy: in Life OS den Zugang löschen. Alles andere bleibt geschützt.</li>
+<li>Sophies Schlüssel erreichen nur den Haushalt, nie Finanzen, To-Dos oder Dokumente.</li>
+</ul>
+</section>
+</main></body></html>

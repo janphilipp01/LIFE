@@ -43,3 +43,11 @@ Die App spricht dieselbe Schnittstelle wie der frühere Artifact-Speicher, desha
 
 ## Offline
 Die App startet auch ohne Netz (Service Worker hält App-Hülle und Bibliotheken vor). Gelesene Daten liegen je Sammlung im Browser-Speicher des Geräts; ohne Netz zeigt die App diesen Stand, neue Einträge und Änderungen landen in einer Warteschlange und werden beim nächsten Online-Gang automatisch übertragen. Ein Hinweis unten zeigt „Offline“ und die Zahl wartender Änderungen. Beim Abmelden und beim Wechsel des Kontos wird der lokale Speicher gelöscht.
+
+## Handy, Sicherheit, Mitteilungen (Ergänzung)
+Einmalig nach `schema.sql` einrichten:
+1. **SQL**: `supabase/schema-handy.sql` im SQL-Editor ausführen. Es richtet ein: Zwei-Faktor-Pflicht für alle, die einen Authenticator aktiviert haben; nächtliche Sicherung (30 Tage, Wiederherstellung siehe Kommentar in der Datei); Tabellen für Push-Abos und Handy-Schlüssel.
+2. **Server-Funktionen** `handy` und `push` bereitstellen, entweder mit der Supabase-CLI (`supabase functions deploy handy` und `supabase functions deploy push`, `supabase/config.toml` schaltet die JWT-Prüfung ab) oder im Dashboard unter Edge Functions → „Deploy a new function“ → Inhalt von `supabase/functions/<name>/index.ts` einfügen und **„Verify JWT“ ausschalten**. Beide Funktionen prüfen den Zugang selbst.
+3. In der App: Einstellungen → Handy & Sicherheit → Zwei-Faktor einrichten, Mitteilungen einschalten (richtet den stündlichen Aufruf automatisch ein), Schlüssel erzeugen. Anleitung für Kurzbefehle, Siri, Teilen-Menü, Health, NFC, Orte, Widget und Kalender: `/handy.html`.
+
+Push-Schlüssel (VAPID) und das Cron-Geheimnis werden automatisch erzeugt und liegen nur in der Datenbank (`private.secrets`). Quellen der Funktionen: `src/fn/` (nach Änderungen `python3 build.py`). Tests: `deno run -A test/fn.test.ts`.

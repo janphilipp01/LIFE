@@ -713,7 +713,7 @@ const SCHEMA={
  legal:{one:'Vorgang',f:[F('title','Vorgang','text'),F('counterparty','Gegenseite','text'),F('entity','Zuordnung','select',ENT),F('status','Status','select',['offen','laufend','wartet auf Gegenseite','abgeschlossen']),F('deadline','Nächste Frist','date'),F('lawyer','Anwalt / Berater','text'),F('file','Datei','file'),F('note','Stand','textarea')]},
  projects:{one:'Projekt',f:[F('title','Projekt','text'),F('area','Bereich','select',AREAS),F('status','Status','seg',[['Idee','Idee'],['aktiv','aktiv'],['wartet','wartet'],['erledigt','erledigt']]),F('nextStep','Nächster Schritt','text'),F('due','Ziel-Datum','date'),F('focusWeek','Wochenfokus','seg',()=>[['','nein'],[weekId(new Date()),'diese Woche']]),F('progress','Fortschritt (%) – nur ohne Meilensteine','number'),F('note','Notiz','textarea')]},
  goals:{one:'Ziel',f:[F('title','Ziel','text'),F('horizon','Zeitraum','text'),F('area','Bereich','select',AREAS),F('auto','Messung','select',()=>Object.entries(GOAL_AUTO).map(([k,v])=>[k,v[0]])),W(F('metric','Messgröße','text'),v=>!v.auto),F('target','Zielwert','number'),W(F('current','Aktueller Wert','number'),v=>!v.auto),F('due','Bis','date')]},
- habits:{one:'Gewohnheit',f:[F('name','Gewohnheit','text'),F('cadence','Rhythmus','seg',[['täglich','täglich'],['werktags','werktags'],['woche','Ziel pro Woche']]),W(F('perWeek','Mal pro Woche','number'),v=>v.cadence==='woche'),F('active','Aktiv','seg',[['ja','ja'],['nein','nein']])]},
+ habits:{one:'Gewohnheit',f:[F('name','Gewohnheit','text'),F('cadence','Rhythmus','seg',[['täglich','täglich'],['werktags','werktags'],['woche','Ziel pro Woche']]),W(F('perWeek','Mal pro Woche','number'),v=>v.cadence==='woche'),F('health','Automatisch abhaken (Apple Health)','seg',[['','aus'],['steps','Schritte'],['kcal','Aktivkalorien'],['workouts','Training']]),W(F('healthMin','Ab Wert','number'),v=>v.health==='steps'||v.health==='kcal'),F('active','Aktiv','seg',[['ja','ja'],['nein','nein']])]},
  meals:{one:'Mahlzeit',f:[F('date','Datum','date'),F('meal','Mahlzeit','select',['Frühstück','Mittag','Abend','Snack']),F('what','Was','text'),F('kcal','kcal','number'),F('protein','Protein (g)','number'),F('fav','Favorit','seg',[['','nein'],['ja','ja']])]},
  people:{one:'Person',f:[F('name','Name','text'),F('relation','Beziehung','select',['Familie','Partnerin','Freunde','Business','Kollegen','Netzwerk']),F('birthday','Geburtstag','date'),F('lastContact','Letzter Kontakt','date'),F('cadence','Kontakt-Rhythmus','select',['wöchentlich','alle 2 Wochen','monatlich','quartalsweise','halbjährlich']),F('note','Notizen','textarea')]},
  body:{one:'Messung',f:[Q(F('date','Datum','date')),F('weight','Gewicht (kg)','number'),F('waist','Bauchumfang (cm)','number'),F('bodyfat','Körperfett (%)','number'),F('note','Notiz','text')]},
@@ -769,7 +769,7 @@ const SECS=GROUPS.flatMap(g=>g[3].map(x=>x[0]));
 const groupOf=sec=>GROUPS.find(g=>g[3].some(x=>x[0]===sec))||GROUPS[0];
 
 // ---------- Zustand ----------
-const S={}; Object.keys(SCHEMA).forEach(k=>S[k]=[]); Object.assign(S,{habitlog:[],workouts:[],snapshots:[],journal:[],meta:{},settings:{},hh:{}});
+const S={}; Object.keys(SCHEMA).forEach(k=>S[k]=[]); Object.assign(S,{health:[],habitlog:[],workouts:[],snapshots:[],journal:[],meta:{},settings:{},hh:{}});
 let assetsApi=null,sampleApi=null,downloadsApi=null;S.tplan=null;
 let db=null, loaded=false, owner=true;
 const ui={sec:'heute',tab:{},q:{},showMoney:false,wdate:null,draft:null,scen:null,jdate:null,jdraft:null,last:{}};
@@ -831,6 +831,7 @@ async function boot(){
   });
   if(owner){
     sub(db.collection('habitlog').orderBy('date','desc').limit(60),s=>{S.habitlog=s.docs.map(d=>({id:d.id,...d.data()}))});
+    sub(db.collection('health').orderBy('date','desc').limit(120),s=>{S.health=s.docs.map(d=>({id:d.id,...d.data()}))});
     sub(db.collection('workouts').orderBy('date','desc').limit(400),s=>{S.workouts=s.docs.map(d=>({id:d.id,...d.data()}))});
     sub(db.collection('journal').orderBy('date','desc').limit(800),s=>{S.journal=s.docs.map(d=>({id:d.id,...d.data()}))});
     sub(db.collection('snapshots').orderBy('month','asc').limit(240),s=>{S.snapshots=s.docs.map(d=>({id:d.id,...d.data()}))});
@@ -1144,7 +1145,9 @@ function heuteExtras(){
 }
 // ---------- Gewohnheiten ----------
 function perWeekOf(h){if(h.cadence==='woche')return Math.max(1,Math.min(7,+h.perWeek||3));const m=String(h.cadence||'').match(/(\d)\s*×/);if(m)return +m[1];if(h.cadence==='wöchentlich')return 1;return null}
-function hState(id,d){const l=S.habitlog.find(x=>x.date===d);const v=l&&l.done&&l.done[id];return v==='skip'?'skip':v?'done':''}
+const HEALTH_DEF={steps:10000,kcal:500,workouts:1};
+function healthMet(h,d){if(!h||!h.health)return false;const hv=S.health.find(x=>(x.date||x.id)===d);return !!hv&&+hv[h.health]>=(+h.healthMin||HEALTH_DEF[h.health]||1)}
+function hState(id,d){const l=S.habitlog.find(x=>x.date===d);const v=l&&l.done&&l.done[id];if(v==='skip')return 'skip';if(v)return 'done';return healthMet(S.habits.find(x=>x.id===id),d)?'done':''}
 function streak(id){const h=S.habits.find(x=>x.id===id)||{};const pw=perWeekOf(h);
   if(pw){let n=0;let mon=monday(TODAY());for(let w=0;w<52;w++){const ds=[0,1,2,3,4,5,6].map(i=>addDays(mon,i));const c=ds.filter(d=>hState(id,d)==='done').length;if(c>=pw)n++;else if(w>0)break;mon=addDays(mon,-7)}return {n,unit:n===1?'Woche':'Wochen'}}
   let n=0;let d=TODAY();for(let i=0;i<400;i++){const wd=parseD(d).getDay();if(h.cadence==='werktags'&&(wd===0||wd===6)){d=addDays(d,-1);continue}const st=hState(id,d);if(st==='done')n++;else if(st==='skip'){}else if(i>0)break;d=addDays(d,-1)}return {n,unit:n===1?'Tag':'Tage'}}
@@ -1169,7 +1172,7 @@ function ringData(){
   all.todo={n:'To-Dos',v:tDone,of:todayT.length,txt:todayT.length?`${tDone} von ${todayT.length}`:'nichts fällig',go:'todo'};
   const w=woFor(t);const wl=S.workouts.find(x=>x.date===t);const exDone=wl?Object.values(wl.ex||{}).filter(e=>e.done).length:0;
   all.training={n:'Training',v:wl?Math.max(exDone,1):0,of:wl?Math.max(exDone,w.items.length||1):(w.items.length||1),txt:wl?`${exDone} von ${w.items.length} Übungen`:w.items.length?esc(w.focus||'Einheit offen'):'Ruhetag',go:'training'};
-  const hs=S.habits.filter(h=>h.active!=='nein');const log=S.habitlog.find(l=>l.date===t);const hDone=hs.filter(h=>log&&log.done&&log.done[h.id]===true).length;
+  const hs=S.habits.filter(h=>h.active!=='nein');const log=S.habitlog.find(l=>l.date===t);const hDone=hs.filter(h=>hState(h.id,t)==='done').length;
   all.habits={n:'Gewohnheiten',v:hDone,of:hs.length,txt:hs.length?`${hDone} von ${hs.length}`:'noch keine angelegt',go:'persoenlich'};
   const mo=S.mails.filter(m=>m.status!=='erledigt'&&m.priority==='hoch').length;const md=S.mails.filter(m=>m.status==='erledigt'&&(m.updatedAt||'').startsWith(t)).length;
   all.inbox={n:'Postfach',v:md,of:md+mo,txt:mo?`${mo} wichtige offen`:'alles Wichtige erledigt',go:'post'};if(!mo)all.inbox.v=all.inbox.of=1;
@@ -1738,7 +1741,7 @@ async function hhGenerate(){if(hhGenBusy||!db)return;hhGenBusy=true;let n=0;
     if(n)toast(n===1?'1 wiederkehrende Ausgabe gebucht':n+' wiederkehrende Ausgaben gebucht');if(!shopAutoDone){shopAutoDone=true;await shopAuto()}}catch(e){console.warn(e)}finally{hhGenBusy=false}}
 V.haushalt=()=>{
   const n=hhNames();const me=owner?'a':'b';
-  const tb=tabs('hh',[['uebersicht','Übersicht'],['aufgaben','Aufgaben'],['einkauf','Einkauf'],['essen','Essensplan'],['vorrat','Vorräte'],['kalender','Kalender'],['rechnung','Haushaltsrechnung'],['einkommen','Einkommen & Schlüssel']]);
+  const tb=tabs('hh',[['uebersicht','Übersicht'],['aufgaben','Aufgaben'],['einkauf','Einkauf'],['essen','Essensplan'],['vorrat','Vorräte'],['kalender','Kalender'],['rechnung','Haushaltsrechnung'],['einkommen','Einkommen & Schlüssel'],...(!owner&&window.__mobile?[['handy','Handy']]:[])]);
   const key=hhKey();const bal=hhBalance();
   const balTxt=Math.abs(bal)<0.5?'Ihr seid ausgeglichen.':bal>0?`${esc(n.b)} schuldet ${esc(n.a)} ${M(bal,true)}`:`${esc(n.a)} schuldet ${esc(n.b)} ${M(-bal,true)}`;
   const tasks=[...S.hhTasks].filter(t=>t.status!=='erledigt').sort((a,b)=>hhTaskDue(a)<hhTaskDue(b)?-1:1);
@@ -1787,6 +1790,7 @@ V.haushalt=()=>{
     ${panel('Einkommensarten',listHTML(inc.map(i=>rowHTML({coll:'hhInc',id:i.id,t:i.type||'Einkommen',s:esc([i.person==='a'?n.a:n.b,i.note].filter(Boolean).join(' · ')),r:M(i.amount),rs:'pro Monat netto'})),'Noch keine Einkommen erfasst. Ihr tragt beide eure Einkommensarten ein; daraus ergibt sich der Schlüssel.'),'hhInc',`<button class="btn sm" data-hhnames>Namen</button>`)}
     <p class="sync">Der Schlüssel berechnet sich laufend aus allen eingetragenen Einkommen. Jede Ausgabe speichert den Schlüssel vom Zeitpunkt der Erfassung, damit spätere Änderungen alte Ausgaben nicht verschieben.</p>`;
   }
+  if(tb.cur==='handy')body='<div id="mobileBox"><div class="empty">Wird geladen …</div></div>';
   return `<div class="topbar"><div><h1>Haushalt</h1><p>Gemeinsam mit ${esc(n.b)}: Aufgaben, Einkauf, Kalender und Haushaltsrechnung.${owner?' Nur dieser Bereich ist für sie sichtbar.':''}</p></div></div>${tb.html}${body}`;
 };
 
@@ -1987,7 +1991,7 @@ function openListEdit(key,i){
   f.querySelector('[data-ldelask]').addEventListener('click',()=>{document.getElementById('lDel').innerHTML=`<span class="confirm">${used?`${used} Einträge behalten den Wert.`:''} Entfernen? <button type="button" class="btn sm danger" id="lYes">Ja</button></span>`;document.getElementById('lYes').onclick=async()=>{closeSheet();await saveList(key,arr.filter((x,j)=>j!==i));toast('Entfernt')}});
 }
 V.einstellungen=()=>{
-  const tb=tabs('set',[['listen','Listen'],['heute','Heute & Ringe'],['darstellung','Darstellung'],['reserven','Reserven & Ziele']]);let body='';
+  const tb=tabs('set',[['listen','Listen'],['heute','Heute & Ringe'],['darstellung','Darstellung'],['reserven','Reserven & Ziele'],...(window.__mobile?[['handy','Handy & Sicherheit']]:[])]);let body='';
   if(tb.cur==='heute'){const cur=(S.settings&&S.settings.rings)||['todo','training','habits'];
     body=panel('Die drei Ringe',`<p class="sync" style="margin:-4px 4px 4px">Wähle genau drei Bereiche. Reihenfolge = außen nach innen.</p><div class="lchips">${Object.entries(RING_OPTS).map(([k,l])=>{const i=cur.indexOf(k);return `<button class="lchip ${i>=0?'on':''}" data-ringpick="${k}" aria-pressed="${i>=0}">${i>=0?`<span class="num">${i+1}</span>`:''}${esc(l)}</button>`}).join('')}</div>`)
       +panel('Absender für Schreiben',`<div class="field"><label for="setSN">Name</label><input id="setSN" value="${esc((S.settings&&S.settings.senderName)||'Jan Leuker')}" data-setfield="senderName"></div><div class="field"><label for="setSA">Anschrift (eine Zeile pro Zeile)</label><textarea id="setSA" data-setfield="senderAddress">${esc((S.settings&&S.settings.senderAddress)||'')}</textarea></div>`)
@@ -2003,6 +2007,7 @@ V.einstellungen=()=>{
     body=panel('Mindestreserven',listHTML(ENT.map(e=>`<div class="row" style="cursor:default"><span class="dot acc"></span><div class="t">${esc(e)}</div><div class="r">${r[e]!=null?M(r[e]):'<span class="sync">keine</span>'}</div></div>`),''),'',`<button class="btn sm" data-settings>Bearbeiten</button>`)
       +panel('Vermögensziel',`<div class="kpis"><div class="kpi"><span class="lbl">Ziel</span><span class="val">${M(st.goalNet)}</span><span class="sub">${st.goalDate?'bis '+fd(st.goalDate):'ohne Datum'}</span></div></div>`,'',`<button class="btn sm" data-settings>Bearbeiten</button>`);
   }
+  if(tb.cur==='handy')body='<div id="mobileBox"><div class="empty">Wird geladen …</div></div>';
   return `<div class="topbar"><div><h1>Einstellungen</h1><p>Listen, Reserven und Ziele, die überall in der App verwendet werden.</p></div></div>${tb.html}${body}`;
 };
 
@@ -2049,13 +2054,18 @@ function render(){
   const ae=document.activeElement;const keep=ae&&ae.id&&v.contains(ae)&&(ae.id.startsWith('q-')||ae.matches('[data-set],#wNote,#wRpe,#shopItem,#shopQty,#packItem,#scAmt,#scMon,#jText,#jGrat,#jLearn,#todoTitle,#todoDue'))?ae.id||null:null;
   const setKey=ae&&ae.dataset&&ae.dataset.set;const pos=ae&&('selectionStart' in ae)?(()=>{try{return ae.selectionStart}catch(e){return null}})():null;
   const sy=window.scrollY;
+  const keepMb=document.getElementById('mobileBox');
   try{v.innerHTML=(!loaded&&db)?'<div class="empty">Daten werden geladen …</div>':(V[ui.sec]||V.heute)();}catch(e){console.error(e);v.innerHTML=`<div class="banner bad">Diese Ansicht konnte nicht angezeigt werden: ${esc(e.message)}</div>`}
   {const h=v.querySelector('.topbar h1');if(h){const g=groupOf(ui.sec);const sub=(g[3].find(x=>x[0]===ui.sec)||[])[1];h.insertAdjacentHTML('beforebegin',`<div class="eyebrow">${ui.sec==='heute'?'Tagesüberblick':esc(g[1])+(g[3].length>1&&sub?' · '+esc(sub):'')}</div>`)}}
   let n=null;if(setKey)n=v.querySelector(`[data-set="${setKey}"]`);else if(keep)n=document.getElementById(keep);
   if(n){n.focus();try{if(pos!=null)n.setSelectionRange(pos,pos)}catch(e){}}
   if(sy)window.scrollTo(0,sy);
   hydrateBlobs();
+  {const mb=document.getElementById('mobileBox');if(mb&&window.__mobile){if(keepMb&&keepMb.dataset.sec===ui.sec){mb.replaceWith(keepMb)}else{mb.dataset.sec=ui.sec;window.__mobile.mount(mb)}}}
+  if(loaded){appBadge();processRaw()}
 }
+let badgeLast=-1;function appBadge(){try{if(!navigator.setAppBadge)return;const n=owner?S.reminders.filter(r=>r.status!=='erledigt'&&r.due&&r.due<=TODAY()).length:S.hhTasks.filter(t=>t.status!=='erledigt'&&hhTaskDue(t)<=TODAY()&&t.lastDone!==TODAY()&&['b','beide'].includes(hhAssignee(t))).length;if(n===badgeLast)return;badgeLast=n;(n?navigator.setAppBadge(n):navigator.clearAppBadge()).catch(()=>{})}catch(e){}}
+const rawSeen=new Set();async function processRaw(){if(!owner||!db)return;for(const r of S.reminders.filter(x=>x.raw&&!rawSeen.has(x.id))){rawSeen.add(r.id);const q=parseQuick(r.title);const data={raw:false,title:q.title||r.title,due:q.due||null,time:q.time,priority:q.priority,area:q.area,flagged:q.flagged,repeat:q.recurrence?'wiederkehrend':'einmalig',recurrence:q.recurrence,everyDays:q.everyDays,waitingFor:q.waitingFor||null,followUp:q.waitingFor?addDays(TODAY(),7):null};Object.keys(data).forEach(k=>data[k]==null&&delete data[k]);try{await patch('reminders',r.id,data)}catch(e){}}}
 
 // ---------- Bearbeiten ----------
 function openEdit(coll,id,preset){
@@ -2692,7 +2702,7 @@ document.addEventListener('drop',async e=>{const z=e.target.closest&&e.target.cl
   await tpEdit(v=>{const a=v.plan[wo][dk];let item;if(src.lib)item={n:src.lib,s:3,r:'8'};else{const from=v.plan[wo][src.dk];item=from.splice(src.i,1)[0];if(!item)return;if(src.dk===dk&&idx!=null&&src.i<idx)idx--}if(idx==null||idx>a.length)idx=a.length;a.splice(idx,0,item)})});
 window.addEventListener('hashchange',()=>{const h=location.hash.slice(1);if(SECS.includes(h)&&h!==ui.sec){ui.sec=h;render()}});
 setInterval(()=>{if(!document.getElementById('overlay').innerHTML&&loaded&&!(document.activeElement&&document.activeElement.matches('input,textarea,select')))render()},5*60*1000);
-window.__lifeos={streak,habitMonth,perWeekOf,periodStats,weekVolume,throwStats,tripTx,dishBook,shopDue,addIngredients,moodInsightsHTML,hhMonthPDF,journalPDF,holdingKPIs,rentIncrease,rentArrears,loanPlan,dealSensHTML,autoGen,cancelLetter,extractText,dutyDue,objectionDeadline,TX,txParts,detectTransfers,applyRules,ruleMatch,startImport,planActual,budgetFor,skontoInfo,moveOccurrence,mailTopic,mailAction,goalValue,projProgress,weekGridHTML,dayPlan,changesSince,bulkTodo,keyNav,getPrefs,taxData,buildTaxPackage,planAt,libList,tpEditable,tpEdit,listCurrent,renameListValue,saveList,parseReceiptText,searchAll,calItems,occDates,deptOf,exHist,hhGenerate,recNext,S,forecast,calc,hhBalance,hhKey,woFor,dealCalc,loanSim,render,ui,nextDue,parseQuick,ringData};
+window.__lifeos={toast,appBadge,processRaw,healthMet,streak,habitMonth,perWeekOf,periodStats,weekVolume,throwStats,tripTx,dishBook,shopDue,addIngredients,moodInsightsHTML,hhMonthPDF,journalPDF,holdingKPIs,rentIncrease,rentArrears,loanPlan,dealSensHTML,autoGen,cancelLetter,extractText,dutyDue,objectionDeadline,TX,txParts,detectTransfers,applyRules,ruleMatch,startImport,planActual,budgetFor,skontoInfo,moveOccurrence,mailTopic,mailAction,goalValue,projProgress,weekGridHTML,dayPlan,changesSince,bulkTodo,keyNav,getPrefs,taxData,buildTaxPackage,planAt,libList,tpEditable,tpEdit,listCurrent,renameListValue,saveList,parseReceiptText,searchAll,calItems,occDates,deptOf,exHist,hhGenerate,recNext,S,forecast,calc,hhBalance,hhKey,woFor,dealCalc,loanSim,render,ui,nextDue,parseQuick,ringData};
 applyPrefs();
 boot();
 })();

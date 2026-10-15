@@ -1,0 +1,6 @@
+# Für die Supabase-CLI: beide Funktionen prüfen den Zugang selbst (persönlicher Schlüssel bzw. Cron-Geheimnis)
+[functions.handy]
+verify_jwt = false
+
+[functions.push]
+verify_jwt = false
